@@ -1,36 +1,20 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          ui: ['lucide-react', 'framer-motion'],
-          markdown: ['marked', 'gray-matter']
-        }
-      }
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
     },
-    sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
-    }
   },
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-  },
-  assetsInclude: ['**/*.md'],
   server: {
-    headers: {
-      'Cache-Control': 'public, max-age=31536000'
-    }
-  }
+    port: 5173,
+    cors: true,
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+  },
 })

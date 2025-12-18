@@ -1,17 +1,13 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { Buffer } from 'buffer'
-import { HelmetProvider } from 'react-helmet-async'
-import App from './App.tsx'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import App from './App'
 import './index.css'
 
-// Make Buffer available globally for libraries that expect it
-globalThis.Buffer = Buffer
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <HelmetProvider>
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <BrowserRouter>
       <App />
-    </HelmetProvider>
-  </StrictMode>,
+    </BrowserRouter>
+  </React.StrictMode>,
 )

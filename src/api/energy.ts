@@ -1,0 +1,192 @@
+// Energy cost data by US state (cents per kWh)
+// Source: EIA average residential electricity prices
+export const stateEnergyRates: Record<string, number> = {
+  'AL': 14.45,
+  'AK': 23.42,
+  'AZ': 13.16,
+  'AR': 12.31,
+  'CA': 27.50,
+  'CO': 14.79,
+  'CT': 25.63,
+  'DE': 14.08,
+  'FL': 14.51,
+  'GA': 13.26,
+  'HI': 43.18,
+  'ID': 10.58,
+  'IL': 15.12,
+  'IN': 14.86,
+  'IA': 14.01,
+  'KS': 14.24,
+  'KY': 12.55,
+  'LA': 12.52,
+  'ME': 22.15,
+  'MD': 14.48,
+  'MA': 25.92,
+  'MI': 18.44,
+  'MN': 14.54,
+  'MS': 12.96,
+  'MO': 13.23,
+  'MT': 12.17,
+  'NE': 12.08,
+  'NV': 13.98,
+  'NH': 23.57,
+  'NJ': 17.68,
+  'NM': 14.65,
+  'NY': 22.15,
+  'NC': 12.58,
+  'ND': 11.42,
+  'OH': 14.52,
+  'OK': 12.22,
+  'OR': 12.28,
+  'PA': 16.54,
+  'RI': 24.04,
+  'SC': 13.81,
+  'SD': 12.98,
+  'TN': 12.22,
+  'TX': 14.01,
+  'UT': 11.17,
+  'VT': 20.73,
+  'VA': 13.38,
+  'WA': 10.98,
+  'WV': 13.62,
+  'WI': 15.98,
+  'WY': 11.96,
+  'DC': 14.25,
+}
+
+export const stateNames: Record<string, string> = {
+  'AL': 'Alabama',
+  'AK': 'Alaska',
+  'AZ': 'Arizona',
+  'AR': 'Arkansas',
+  'CA': 'California',
+  'CO': 'Colorado',
+  'CT': 'Connecticut',
+  'DE': 'Delaware',
+  'FL': 'Florida',
+  'GA': 'Georgia',
+  'HI': 'Hawaii',
+  'ID': 'Idaho',
+  'IL': 'Illinois',
+  'IN': 'Indiana',
+  'IA': 'Iowa',
+  'KS': 'Kansas',
+  'KY': 'Kentucky',
+  'LA': 'Louisiana',
+  'ME': 'Maine',
+  'MD': 'Maryland',
+  'MA': 'Massachusetts',
+  'MI': 'Michigan',
+  'MN': 'Minnesota',
+  'MS': 'Mississippi',
+  'MO': 'Missouri',
+  'MT': 'Montana',
+  'NE': 'Nebraska',
+  'NV': 'Nevada',
+  'NH': 'New Hampshire',
+  'NJ': 'New Jersey',
+  'NM': 'New Mexico',
+  'NY': 'New York',
+  'NC': 'North Carolina',
+  'ND': 'North Dakota',
+  'OH': 'Ohio',
+  'OK': 'Oklahoma',
+  'OR': 'Oregon',
+  'PA': 'Pennsylvania',
+  'RI': 'Rhode Island',
+  'SC': 'South Carolina',
+  'SD': 'South Dakota',
+  'TN': 'Tennessee',
+  'TX': 'Texas',
+  'UT': 'Utah',
+  'VT': 'Vermont',
+  'VA': 'Virginia',
+  'WA': 'Washington',
+  'WV': 'West Virginia',
+  'WI': 'Wisconsin',
+  'WY': 'Wyoming',
+  'DC': 'Washington D.C.',
+}
+
+// Get energy rate for a state (returns cents per kWh)
+export function getStateEnergyRate(stateCode: string): number {
+  return stateEnergyRates[stateCode] ?? 15.0 // Default to ~15 cents
+}
+
+// Convert cents/kWh to dollars/kWh
+export function centsToDoallars(cents: number): number {
+  return cents / 100
+}
+
+// Calculate annual electricity cost
+export function calculateAnnualElectricityCost(
+  powerWatts: number,
+  hoursPerYear: number,
+  ratePerKwh: number // in dollars
+): number {
+  const kwhPerYear = (powerWatts / 1000) * hoursPerYear
+  return kwhPerYear * ratePerKwh
+}
+
+// Heating degree days by state (approximate annual HDD)
+// Used to estimate heating season length
+export const stateHDD: Record<string, number> = {
+  'AL': 2500,
+  'AK': 10000,
+  'AZ': 1500,
+  'AR': 3200,
+  'CA': 2000,
+  'CO': 6000,
+  'CT': 5800,
+  'DE': 4500,
+  'FL': 600,
+  'GA': 2400,
+  'HI': 0,
+  'ID': 6000,
+  'IL': 6000,
+  'IN': 5600,
+  'IA': 6800,
+  'KS': 5000,
+  'KY': 4500,
+  'LA': 1600,
+  'ME': 7500,
+  'MD': 4600,
+  'MA': 6000,
+  'MI': 6800,
+  'MN': 8000,
+  'MS': 2200,
+  'MO': 5000,
+  'MT': 7500,
+  'NE': 6200,
+  'NV': 4000,
+  'NH': 7200,
+  'NJ': 5000,
+  'NM': 4000,
+  'NY': 6000,
+  'NC': 3500,
+  'ND': 9000,
+  'OH': 5600,
+  'OK': 3600,
+  'OR': 4500,
+  'PA': 5500,
+  'RI': 5800,
+  'SC': 2600,
+  'SD': 7500,
+  'TN': 3600,
+  'TX': 2000,
+  'UT': 5500,
+  'VT': 7500,
+  'VA': 4200,
+  'WA': 5000,
+  'WV': 4800,
+  'WI': 7500,
+  'WY': 7500,
+  'DC': 4200,
+}
+
+// Estimate heating season hours based on HDD
+export function estimateHeatingHours(stateCode: string): number {
+  const hdd = stateHDD[stateCode] ?? 5000
+  // Rough conversion: ~0.7 hours of heating per HDD
+  return Math.round(hdd * 0.7)
+}

@@ -1,498 +1,112 @@
-import React from 'react'
-import { Helmet } from 'react-helmet-async'
-import { ArrowRight, Wrench, Cpu, Bitcoin, Flame, DollarSign, Zap, Calculator, Search, Cog, Monitor, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useTypewriter } from '../hooks/useTypewriter'
-import ProjectCarousel from '../components/ProjectCarousel'
-import MediaHighlights from '../components/MediaHighlights'
-import { motion } from 'framer-motion'
+import { Flame, Sun, Zap, ClipboardList, ArrowRight } from 'lucide-react'
 
-const Home = () => {
-  const headlineText = useTypewriter("You pay for heat every month", 75)
-  const isTypewriterComplete = headlineText === "You pay for heat every month"
+const calculators = [
+  {
+    path: '/hashrate',
+    title: 'Hashrate Heating',
+    description: 'Quick KPIs for hashrate heating economics. Calculate your COPe (Coefficient of Performance - Economic) and compare heating costs vs traditional fuels.',
+    icon: Flame,
+    color: 'bg-orange-500',
+    complexity: 'Simple',
+  },
+  {
+    path: '/solar',
+    title: 'Solar Mining',
+    description: 'Estimate Bitcoin mining potential from your solar system. See annual production, mining revenue, and compare excess solar value: grid credits vs BTC.',
+    icon: Sun,
+    color: 'bg-yellow-500',
+    complexity: 'Simple',
+  },
+  {
+    path: '/combined',
+    title: 'Heat + Solar',
+    description: 'Combined analysis for buildings with both heating needs and solar production. Seasonal duty cycle optimization and year-round economic projections.',
+    icon: Zap,
+    color: 'bg-blue-500',
+    complexity: 'Combined',
+  },
+  {
+    path: '/audit',
+    title: 'Exergy Audit',
+    description: 'Comprehensive energy analysis. Analyze heat loss from utility bills or building specs, get miner sizing recommendations, and detailed ROI projections.',
+    icon: ClipboardList,
+    color: 'bg-purple-500',
+    complexity: 'Comprehensive',
+  },
+]
 
-  const containerVariants = {
-    hidden: {},
-    visible: {
-      transition: {
-        staggerChildren: 0.2
-      }
-    }
-  }
-
-  const cardVariants = {
-    hidden: { 
-      opacity: 0,
-      x: -50
-    },
-    visible: {
-      opacity: 1,
-      x: 0,
-      transition: {
-        type: "spring",
-        stiffness: 100
-      }
-    }
-  }
-
+export default function Home() {
   return (
-    <div className="bg-surface-50 dark:bg-surface-900">
-      <Helmet>
-        <title>Exergy | Heat That Pays</title>
-        <meta name="description" content="Upgrade to heat that pays you instead. Exergy's hashrate heating systems generate warmth and bitcoin rewards simultaneously at no extra cost. Vetted hardware, expert design and installation services." />
-        <meta name="keywords" content="hashrate heating, bitcoin mining heat reuse, heat that pays, bitcoin heating, energy efficient heating, bitcoin heaters, electric heat, electric heating, hashrate powered heat, bitcoin mining heat, hash rate heat, hash rate heating, mine for heat, mining for heat, bitcoin mining, mining bitcoin at home, mine btc at home, bitcoin mining at home" />
-      </Helmet>
-      
+    <div className="space-y-12">
       {/* Hero Section */}
-      <div 
-        className="relative bg-cover bg-center h-[600px]" 
-        style={{ 
-          backgroundImage: "url('/StockBackgroundHome_Tinted.png')",
-          backgroundBlendMode: 'overlay',
-        }}
-      >
-        <div className="absolute inset-0 flex items-center">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-white">
-            <h1 className="text-4xl md:text-6xl font-heading mb-6">
-              {headlineText}
-              {!isTypewriterComplete && <span className="animate-pulse">|</span>}
-            </h1>
-            <motion.p 
-              className="text-xl md:text-2xl mb-8 max-w-2xl font-body"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ 
-                opacity: isTypewriterComplete ? 1 : 0,
-                y: isTypewriterComplete ? 0 : 20
-              }}
-              transition={{ 
-                duration: 0.8,
-                ease: "easeOut",
-                delay: isTypewriterComplete ? 0.5 : 0
-              }}
-            >
-              Upgrade to heat that pays you instead
-            </motion.p>
-            <motion.div 
-              className="flex flex-wrap gap-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ 
-                opacity: isTypewriterComplete ? 1 : 0,
-                y: isTypewriterComplete ? 0 : 20
-              }}
-              transition={{ 
-                duration: 0.8,
-                ease: "easeOut",
-                delay: isTypewriterComplete ? 1 : 0
-              }}
-            >
-              <Link
-                to="/book-call"
-                className="inline-flex items-center px-6 py-3 border border-white text-base font-subheading rounded-md text-white hover:bg-white hover:text-primary-500 transition-colors"
-              >
-                Book an Intro Call
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-              <motion.a
-                href="https://40rqsp.share-na2.hsforms.com/2hJgXKKL6RPWk-LYX5bo3jA"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/30 text-sm font-subheading rounded-md text-white hover:bg-white/20 transition-colors"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ 
-                  opacity: isTypewriterComplete ? 1 : 0,
-                  y: isTypewriterComplete ? 0 : 10
-                }}
-                transition={{ 
-                  duration: 0.6,
-                  ease: "easeOut",
-                  delay: isTypewriterComplete ? 1.5 : 0
-                }}
-              >
-                Get Started
-              </motion.a>
-            </motion.div>
-          </div>
-        </div>
+      <div className="text-center max-w-3xl mx-auto">
+        <h1 className="text-4xl font-bold text-surface-900 mb-4">
+          Hashrate Heating Calculators
+        </h1>
+        <p className="text-lg text-surface-600">
+          Make informed decisions about your hashrate heating investment.
+          Start with simple KPIs or dive deep with comprehensive analysis.
+        </p>
       </div>
 
-      {/* Hashrate Heating Summary Section */}
-      <div className="py-20 bg-white dark:bg-surface-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-          {/* Services Grid */}
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6"
-          >
-            {/* Products Card */}
+      {/* Calculator Cards */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {calculators.map((calc) => {
+          const Icon = calc.icon
+          return (
             <Link
-              to="/products"
-              className="bg-surface-50 dark:bg-surface-700 rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:scale-105 group md:col-span-1 lg:col-span-1"
+              key={calc.path}
+              to={calc.path}
+              className="group bg-white rounded-xl border border-surface-200 p-6 hover:shadow-lg hover:border-primary-200 transition-all duration-300"
             >
-              <div className="flex justify-center mb-4">
-                <div className="p-4 bg-primary-100 dark:bg-primary-900 rounded-full group-hover:bg-primary-200 dark:group-hover:bg-primary-800 transition-colors">
-                  <ArrowRight className="h-8 w-8 text-primary-600 dark:text-primary-400" />
+              <div className="flex items-start justify-between mb-4">
+                <div className={`${calc.color} w-12 h-12 rounded-lg flex items-center justify-center`}>
+                  <Icon className="w-6 h-6 text-white" />
                 </div>
+                <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                  calc.complexity === 'Simple' ? 'bg-green-100 text-green-700' :
+                  calc.complexity === 'Combined' ? 'bg-blue-100 text-blue-700' :
+                  'bg-purple-100 text-purple-700'
+                }`}>
+                  {calc.complexity}
+                </span>
               </div>
-              <h3 className="text-lg font-subheading text-surface-900 dark:text-surface-100 mb-2 text-center">
-                View Our<br />Products
-              </h3>
-              <p className="text-sm font-body text-surface-600 dark:text-surface-400 text-center">
-                Tested and vetted hashrate heating solutions
+              <h2 className="text-xl font-semibold text-surface-900 mb-2 group-hover:text-primary-600 transition-colors">
+                {calc.title}
+              </h2>
+              <p className="text-surface-600 text-sm mb-4">
+                {calc.description}
               </p>
-            </Link>
-
-            {/* Heat Audit Service */}
-            <Link
-              to="/services#audit-service"
-              className="bg-surface-50 dark:bg-surface-700 rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:scale-105 group md:col-span-1 lg:col-span-1"
-            >
-              <div className="flex justify-center mb-4">
-                <div className="p-4 bg-primary-100 dark:bg-primary-900 rounded-full group-hover:bg-primary-200 dark:group-hover:bg-primary-800 transition-colors">
-                  <Search className="h-8 w-8 text-primary-600 dark:text-primary-400" />
-                </div>
+              <div className="flex items-center text-primary-600 font-medium text-sm">
+                Open Calculator
+                <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
               </div>
-              <h3 className="text-lg font-subheading text-surface-900 dark:text-surface-100 mb-2 text-center">
-                Sizing &<br />Savings
-              </h3>
-              <p className="text-sm font-body text-surface-600 dark:text-surface-400 text-center">
-                Figure out what you need, and how much you'll earn
-              </p>
             </Link>
-
-            {/* Installation Service */}
-            <Link
-              to="/services#installation-service"
-              className="bg-surface-50 dark:bg-surface-700 rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:scale-105 group md:col-span-1 lg:col-span-1"
-            >
-              <div className="flex justify-center mb-4">
-                <div className="p-4 bg-primary-100 dark:bg-primary-900 rounded-full group-hover:bg-primary-200 dark:group-hover:bg-primary-800 transition-colors">
-                  <Cog className="h-8 w-8 text-primary-600 dark:text-primary-400" />
-                </div>
-              </div>
-              <h3 className="text-lg font-subheading text-surface-900 dark:text-surface-100 mb-2 text-center">
-                Install<br />Assistance
-              </h3>
-              <p className="text-sm font-body text-surface-600 dark:text-surface-400 text-center">
-                Get your hardware, install plan and system online
-              </p>
-            </Link>
-
-            {/* Monitoring Service */}
-            <Link
-              to="/services#monitoring-service"
-              className="bg-surface-50 dark:bg-surface-700 rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:scale-105 group md:col-span-1 lg:col-span-1"
-            >
-              <div className="flex justify-center mb-4">
-                <div className="p-4 bg-primary-100 dark:bg-primary-900 rounded-full group-hover:bg-primary-200 dark:group-hover:bg-primary-800 transition-colors">
-                  <Monitor className="h-8 w-8 text-primary-600 dark:text-primary-400" />
-                </div>
-              </div>
-              <h3 className="text-lg font-subheading text-surface-900 dark:text-surface-100 mb-2 text-center">
-                Automatic<br />Monitoring
-              </h3>
-              <p className="text-sm font-body text-surface-600 dark:text-surface-400 text-center">
-                Receive notifications when it's time for service
-              </p>
-            </Link>
-
-            {/* Consulting Service */}
-            <Link
-              to="/services#consulting-service"
-              className="bg-surface-50 dark:bg-surface-700 rounded-lg p-6 hover:shadow-lg transition-all duration-300 hover:scale-105 group md:col-span-2 lg:col-span-1"
-            >
-              <div className="flex justify-center mb-4">
-                <div className="p-4 bg-primary-100 dark:bg-primary-900 rounded-full group-hover:bg-primary-200 dark:group-hover:bg-primary-800 transition-colors">
-                  <Users className="h-8 w-8 text-primary-600 dark:text-primary-400" />
-                </div>
-              </div>
-              <h3 className="text-lg font-subheading text-surface-900 dark:text-surface-100 mb-2 text-center">
-                Team<br />Consulting
-              </h3>
-              <p className="text-sm font-body text-surface-600 dark:text-surface-400 text-center">
-                Size, install, or repair hashrate heat yourself
-              </p>
-            </Link>
-          </motion.div>
-
-        </div>
+          )
+        })}
       </div>
 
-      {/* Media Highlights Section */}
-      <MediaHighlights />
-
-      {/* Too Good to Be True Section */}
-      <div className="py-20 bg-surface-50 dark:bg-surface-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-heading text-surface-900 dark:text-surface-100 mb-4">Too Good to Be True?</h2>
-            <p className="text-xl font-body text-surface-600 dark:text-surface-400 max-w-2xl mx-auto">
-              Nope - Here's how it works
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
-                    <Zap className="h-6 w-6" />
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-lg font-subheading text-surface-900 dark:text-surface-100">
-                    Electronic Devices Convert Energy into Heat
-                  </h3>
-                  <p className="mt-2 text-base font-body text-surface-500 dark:text-surface-400">
-                    All electronics - from a television to a cellphone - convert electricity into heat from resistance in the circuit boards. It's non-negotiable. Thank the 1st Law of Thermodynamics. 
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
-                    <Bitcoin className="h-6 w-6" />
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-lg font-subheading text-surface-900 dark:text-surface-100">
-                    Bitcoin Miners Pay You for Contributing
-                  </h3>
-                  <p className="mt-2 text-base font-body text-surface-500 dark:text-surface-400">
-                    Miners perform hashing operations to settle bitcoin transactions and issue coins. Rewards are automated & proportional to energy used. All of that energy is turned into heat.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-center h-12 w-12 rounded-md bg-primary-500 text-white">
-                    <DollarSign className="h-6 w-6" />
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-lg font-subheading text-surface-900 dark:text-surface-100">
-                    Heaters Powered By Hashrate = Warmth + Revenue
-                  </h3>
-                  <p className="mt-2 text-base font-body text-surface-500 dark:text-surface-400">
-                    Hashrate heaters deliver two things at once: Heat generated from consuming electricity, and bitcoin rewards for how that electricity was turned into heat. No extra cost or waste.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="relative">
-              <img
-                src="homeheat_withbill.png"
-                alt="Hashrate heating system showing home heating with Bitcoin mining integration and utility bill savings"
-                className="rounded-lg shadow-2xl"
-              />
-              <div className="absolute -bottom-6 -right-6 bg-white dark:bg-surface-800 p-6 rounded-lg shadow-xl">
-                <p className="text-2xl font-heading text-primary-500 dark:text-secondary-500">100%</p>
-                <p className="font-body text-surface-600 dark:text-surface-400">Heating Efficiency</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-12 text-center">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link
-                to="/learn"
-                className="inline-flex items-center px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-base font-subheading"
-              >
-                Learn Hashrate Heating
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-              <Link
-                to="/calculators"
-                className="inline-flex items-center px-6 py-3 border border-primary-500 text-primary-500 dark:text-secondary-500 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900 transition-colors text-base font-subheading"
-              >
-                <Calculator className="mr-2 h-5 w-5" />
-                Estimate Your Earnings
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* See it in Action Section (Project Carousel) */}
-      <div className="bg-white dark:bg-surface-800">
-        <ProjectCarousel />
-      </div>
-
-      {/* Why Choose Us Section */}
-      <div className="py-20 bg-surface-50 dark:bg-surface-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-heading text-surface-900 dark:text-surface-100 mb-4">Why Choose Exergy</h2>
-            <p className="text-xl font-body text-surface-600 dark:text-surface-400 max-w-2xl mx-auto">
-              We're specialists in an emerging industry - in fact, we're defining it
-            </p>
-          </div>
-
-          <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="flex justify-center">
-                <Wrench className="h-12 w-12 text-primary-500 dark:text-secondary-500" />
-              </div>
-              <h3 className="mt-4 text-xl font-subheading text-surface-900 dark:text-surface-100">Best-in-Class Hardware</h3>
-              <p className="mt-2 font-body text-surface-600 dark:text-surface-400">
-                Exergy only offers the best hashrate heating systems. Tested and vetted to deliver the warmth you need, while paying to do so.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="flex justify-center">
-                <Cpu className="h-12 w-12 text-primary-500 dark:text-secondary-500" />
-              </div>
-              <h3 className="mt-4 text-xl font-subheading text-surface-900 dark:text-surface-100">Custom Integration</h3>
-              <p className="mt-2 font-body text-surface-600 dark:text-surface-400">
-                Exergy ensures proper sizing, control and installation to deliver seemless integration, whatever your heating demands.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="flex justify-center">
-                <Bitcoin className="h-12 w-12 text-primary-500 dark:text-secondary-500" />
-              </div>
-              <h3 className="mt-4 text-xl font-subheading text-surface-900 dark:text-surface-100">Maximum Revenue</h3>
-              <p className="mt-2 font-body text-surface-600 dark:text-surface-400">
-                Exergy's Heat Audit optimizes bitcoin heating power to your demand for maximum earnings and the best recommendation.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-12 text-center">
-            <Link
-              to="/about"
-              className="inline-flex items-center px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-base font-subheading"
-            >
-              Learn More About Our Team
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* The Common FAQ Section */}
-      <div className="py-20 bg-white dark:bg-surface-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-heading text-surface-900 dark:text-surface-100 mb-4">Have Questions? We Have Answers</h2>
-            <p className="text-xl font-body text-surface-600 dark:text-surface-400 max-w-2xl mx-auto">
-              Understand the basics of heat that pays
-            </p>
-          </div>
-
-          <motion.div 
-            className="grid grid-cols-1 md:grid-cols-3 gap-8"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-          >
-            {/* Card 1: Why Bitcoin? */}
-            <motion.div className="group" variants={cardVariants}>
-              <div className="bg-surface-50 dark:bg-surface-700 rounded-lg p-8 h-full transform transition-transform group-hover:scale-105 shadow-lg">
-                <div className="flex justify-center mb-6">
-                  <div className="p-4 bg-secondary-100 dark:bg-secondary-900 rounded-full">
-                    <Bitcoin className="h-12 w-12 text-primary-500 dark:text-secondary-500" />
-                  </div>
-                </div>
-                <h3 className="text-xl font-subheading text-surface-900 dark:text-surface-100 mb-4 text-center">
-                  Why Bitcoin?
-                </h3>
-                <p className="font-body text-surface-600 dark:text-surface-400 text-center">
-                  Bitcoin is a digital commodity. A neutral protocol, open for anyone to use, with no controlling authority.
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Card 2: Does it Heat Well? */}
-            <motion.div className="group" variants={cardVariants}>
-              <div className="bg-surface-50 dark:bg-surface-700 rounded-lg p-8 h-full transform transition-transform group-hover:scale-105 shadow-lg">
-                <div className="flex justify-center mb-6">
-                  <div className="p-4 bg-secondary-100 dark:bg-secondary-900 rounded-full">
-                    <Flame className="h-12 w-12 text-primary-500 dark:text-secondary-500" />
-                  </div>
-                </div>
-                <h3 className="text-xl font-subheading text-surface-900 dark:text-surface-100 mb-4 text-center">
-                  Does it Heat The Same?
-                </h3>
-                <p className="font-body text-surface-600 dark:text-surface-400 text-center">
-                  Yes. Hashrate heaters can meet all comfort heating needs - while paying you whenever they're used.
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Card 3: Can I Control It? */}
-            <motion.div className="group" variants={cardVariants}>
-              <div className="bg-surface-50 dark:bg-surface-700 rounded-lg p-8 h-full transform transition-transform group-hover:scale-105 shadow-lg">
-                <div className="flex justify-center mb-6">
-                  <div className="p-4 bg-secondary-100 dark:bg-secondary-900 rounded-full">
-                    <Cpu className="h-12 w-12 text-primary-500 dark:text-secondary-500" />
-                  </div>
-                </div>
-                <h3 className="text-xl font-subheading text-surface-900 dark:text-surface-100 mb-4 text-center">
-                  How much can I earn?
-                </h3>
-                <p className="font-body text-surface-600 dark:text-surface-400 text-center">
-                  Hashrate heating can sigificantly offset heating costs with revenue, sometimes exceeding 100% savings.
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-
-          <div className="mt-12 text-center">
-            <Link
-              to="/faq"
-              className="inline-flex items-center px-6 py-3 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-base font-subheading"
-            >
-              View All Frequently Asked Questions
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* CTA Section with Custom Gradient */}
-      <div className="relative py-16 overflow-hidden bg-gradient-to-r from-[#4970A5] to-[#718EBC]">
-        <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,rgba(255,255,255,0.1),transparent_75%)] animate-pulse"></div>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,rgba(47,59,105,0.3),transparent_50%)] animate-pulse [animation-delay:1s]"></div>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(255,255,255,0.1),transparent_50%)] animate-pulse [animation-delay:2s]"></div>
-        </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-heading text-white mb-4">
-            Ready to get paid for heat?
-          </h2>
-          <p className="text-xl font-body text-white/90 mb-8">
-            Get in touch for a free consultation.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/contact"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-subheading rounded-md text-primary-700 bg-white hover:bg-white/90 transition-colors"
-            >
-              Contact Us
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
-            <Link
-              to="/book-call"
-              className="inline-flex items-center px-6 py-3 border border-white text-base font-subheading rounded-md text-white hover:bg-white hover:text-primary-500 transition-colors"
-            >
-              Book an Intro Call
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Link>
-          </div>
-        </div>
+      {/* Info Section */}
+      <div className="bg-primary-50 rounded-xl p-8 text-center">
+        <h2 className="text-2xl font-semibold text-surface-900 mb-4">
+          What is Hashrate Heating?
+        </h2>
+        <p className="text-surface-700 max-w-2xl mx-auto mb-6">
+          Hashrate heating uses Bitcoin mining hardware to heat your home or business
+          while earning Bitcoin. The heat generated by mining is 100% efficient —
+          every watt of electricity becomes heat, plus you earn cryptocurrency.
+        </p>
+        <a
+          href="https://exergyheat.com/learn"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-primary-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-700 transition-colors"
+        >
+          Learn More at Exergy
+          <ArrowRight className="w-4 h-4" />
+        </a>
       </div>
     </div>
   )
 }
-
-export default Home

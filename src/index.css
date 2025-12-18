@@ -2,218 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import fonts with fallbacks */
-@import url('https://fonts.cdnfonts.com/css/futura-pt');
-@import url('https://fonts.googleapis.com/css2?family=Futura:wght@300;400;500&display=swap');
-@import url('https://fonts.cdnfonts.com/css/valorant');
-
-@layer base {
-  /* All Headings - Futura BK BT Book ALL CAPS */
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    text-transform: uppercase;
-    font-weight: 500;
-    letter-spacing: 0.025em;
-  }
-  
-  /* Main headings get slightly more weight for hierarchy */
-  h1 {
-    font-weight: 600;
-    letter-spacing: 0.05em;
-  }
-  
-  /* Body Copy - Futura LT Light Sentence Case */
-  body, p, span, div, a, button, input, textarea, li, td, th {
-    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    font-weight: 300;
-    text-transform: none;
-  }
-  
-  /* Navigation and UI elements - Futura BK BT Book */
-  nav, .nav-item, .button-text {
-    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    text-transform: uppercase;
-    font-weight: 500;
-    letter-spacing: 0.025em;
-  }
-  
-  /* Form labels and small text - Futura BK BT Book */
-  label, .text-sm, .text-xs {
-    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    text-transform: uppercase;
-    font-weight: 500;
-    letter-spacing: 0.025em;
-  }
-  
-  /* Preserve sentence case for specific elements */
-  .sentence-case {
-    text-transform: none;
-    font-weight: 300;
-  }
-  
-  /* Brand name styling - now using Futura BK BT Book */
-  .brand-name {
-    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    text-transform: uppercase;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-  }
+* {
+  box-sizing: border-box;
 }
 
-@layer utilities {
-  .font-heading {
-    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    text-transform: uppercase;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-  }
-  
-  .font-subheading {
-    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    text-transform: uppercase;
-    font-weight: 500;
-    letter-spacing: 0.025em;
-  }
-  
-  .font-body {
-    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    font-weight: 300;
-    text-transform: none;
-  }
-  
-  .font-valorant {
-    font-family: 'Valorant', 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-  }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* HubSpot Form Styling for About Page "Join the Movement" Section */
-#hubspot-form-container .hs-form {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  gap: 1rem !important;
-  align-items: center !important;
-  max-width: 28rem !important;
-  margin: 0 auto !important;
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-#hubspot-form-container .hs-form-field {
-  flex: 1 !important;
-  margin: 0 !important;
-  min-width: 200px !important;
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
 }
 
-#hubspot-form-container .hs-input {
-  flex: 1 !important;
-  padding: 0.75rem 1rem !important;
-  border-radius: 0.5rem !important;
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  backdrop-filter: blur(8px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: white !important;
-  font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif !important;
-  font-weight: 300 !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
 }
 
-#hubspot-form-container .hs-input::placeholder {
-  color: rgba(255, 255, 255, 0.6) !important;
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 
-#hubspot-form-container .hs-input:focus {
-  outline: none !important;
-  ring: 2px !important;
-  ring-color: rgba(255, 255, 255, 0.4) !important;
-  border-color: rgba(255, 255, 255, 0.4) !important;
+/* Input number spinner removal */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-#hubspot-form-container .hs-button {
-  padding: 0.75rem 1.5rem !important;
-  background-color: white !important;
-  color: #3D5A8A !important;
-  border-radius: 0.5rem !important;
-  font-weight: 600 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.025em !important;
-  font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif !important;
-  border: none !important;
-  cursor: pointer !important;
-  transition: background-color 0.2s ease !important;
-  white-space: nowrap !important;
-}
-
-#hubspot-form-container .hs-button:hover {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-}
-
-/* Hide HubSpot form labels since we're using placeholder text */
-#hubspot-form-container .hs-form-field label {
-  display: none !important;
-}
-
-/* Remove default HubSpot margins and padding */
-#hubspot-form-container .hs-form-field,
-#hubspot-form-container .hs-fieldtype-text,
-#hubspot-form-container .actions {
-  margin-bottom: 0 !important;
-  margin-top: 0 !important;
-}
-
-/* Style the submit button container */
-#hubspot-form-container .actions {
-  flex-shrink: 0 !important;
-}
-
-/* Responsive adjustments for mobile */
-@media (max-width: 640px) {
-  #hubspot-form-container .hs-form {
-    flex-direction: column !important;
-    align-items: stretch !important;
-  }
-  
-  #hubspot-form-container .hs-form-field {
-    min-width: auto !important;
-    width: 100% !important;
-  }
-  
-  #hubspot-form-container .actions {
-    width: 100% !important;
-  }
-  
-  #hubspot-form-container .hs-button {
-    width: 100% !important;
-    justify-content: center !important;
-  }
-}
-
-/* Hide HubSpot branding and extra elements */
-#hubspot-form-container .hs-richtext,
-#hubspot-form-container .hs-form-booleancheckbox,
-#hubspot-form-container .legal-consent-container {
-  display: none !important;
-}
-
-/* Ensure form success message matches the design */
-#hubspot-form-container .submitted-message {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  backdrop-filter: blur(8px) !important;
-  border-radius: 0.5rem !important;
-  padding: 1.5rem !important;
-  color: white !important;
-  text-align: center !important;
-  font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif !important;
-}
-
-#hubspot-form-container .submitted-message h3 {
-  font-size: 1.25rem !important;
-  font-weight: 600 !important;
-  margin-bottom: 0.5rem !important;
-  color: white !important;
-}
-
-#hubspot-form-container .submitted-message p {
-  color: white !important;
-  margin: 0 !important;
+input[type='number'] {
+  -moz-appearance: textfield;
 }
