@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Flame, Zap, Info, Loader2, HelpCircle, TrendingUp, Percent, DollarSign, Thermometer, RefreshCw, Pencil } from 'lucide-react'
+import { Flame, Zap, Info, Loader2, HelpCircle, TrendingUp, Percent, DollarSign, Thermometer, RefreshCw, Pencil, Gauge } from 'lucide-react'
 
 import InputField from '../components/InputField'
 import SelectField from '../components/SelectField'
@@ -656,6 +656,17 @@ export default function HashrateHeating() {
             value={`$${copeResult.breakevenRate.toFixed(3)}/kWh`}
             subValue="Free heating & profitable mining below this rate"
             tooltip="The maximum electricity rate for free heating. Formula: (Daily BTC Mined × BTC Price) / Daily kWh. At this rate, R = 100% and COPe = ∞. Below this rate, you profit while heating. This rate changes with BTC price and network hashrate — lock in low electricity rates to maintain profitability through market cycles."
+            variant="default"
+          />
+
+          {/* Heating Power */}
+          <MetricCard
+            icon={Gauge}
+            label="Heating Power"
+            value={`${(miner.powerW / 1000).toFixed(1)} kW`}
+            secondaryValue={`${(miner.powerW * 3.412).toLocaleString(undefined, { maximumFractionDigits: 0 })} BTU/h`}
+            tertiaryValue={`${((miner.powerW * 3.412) / 12000).toFixed(2)} tons`}
+            tooltip="Thermal output of your miner. Bitcoin miners convert 100% of electrical power to heat. Conversions: 1 W = 3.412 BTU/h, 1 ton = 12,000 BTU/h. Compare to furnace capacity (40,000-120,000 BTU/h typical) or room heaters (5,000-10,000 BTU/h). A 5kW miner provides ~17,000 BTU/h — enough to heat a large room or small home in moderate climates."
             variant="default"
           />
         </div>
