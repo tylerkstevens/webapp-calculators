@@ -1619,6 +1619,38 @@ export default function HashrateHeating() {
       {/* Results Grid */}
       {copeResult && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {/* Effective Heat Cost */}
+          <MetricCard
+            icon={DollarSign}
+            label="Effective Heat Cost"
+            value={`$${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`}
+            secondaryValue={`$${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`}
+            tertiaryValue={fuelEquivalentCost ? `$${fuelEquivalentCost.value.toFixed(2)}/${fuelEquivalentCost.unit}` : undefined}
+            tooltip={`Your net cost per unit of heat after Bitcoin mining revenue offset. Formula: (Daily Electricity Cost - Daily Mining Revenue) / Daily kWh. Negative values mean you're being paid to heat.${fuelEquivalentCost ? ` The ${fuelEquivalentCost.label} rate lets you compare directly to your ${FUEL_SPECS[fuelType].label} bills.` : ''}`}
+            variant={copeResult.effectiveCostPerKwh <= 0 ? 'success' : 'default'}
+          />
+
+          {/* Break-even Rate */}
+          <MetricCard
+            icon={Zap}
+            label="Break-even Rate"
+            value={`$${copeResult.breakevenRate.toFixed(3)}/kWh`}
+            subValue="Free heating & profitable mining below this rate"
+            tooltip="The maximum electricity rate for free heating. Formula: (Daily BTC Mined × BTC Price) / Daily kWh. At this rate, R = 100% and COPe = ∞. Below this rate, you profit while heating. This rate changes with BTC price and network hashrate — lock in low electricity rates to maintain profitability through market cycles."
+            variant="default"
+          />
+
+          {/* Heating Power */}
+          <MetricCard
+            icon={Gauge}
+            label="Heating Power / Unit"
+            value={`${(miner.powerW / 1000).toFixed(1)} kW`}
+            secondaryValue={`${(miner.powerW * 3.412).toLocaleString(undefined, { maximumFractionDigits: 0 })} BTU/h`}
+            tertiaryValue={`${((miner.powerW * 3.412) / 12000).toFixed(2)} tons`}
+            tooltip="Thermal output of your miner. Bitcoin miners convert 100% of electrical power to heat. Conversions: 1 W = 3.412 BTU/h, 1 ton = 12,000 BTU/h. Compare to furnace capacity (40,000-120,000 BTU/h typical) or room heaters (5,000-10,000 BTU/h). A 5kW miner provides ~17,000 BTU/h — enough to heat a large room or small home in moderate climates."
+            variant="default"
+          />
+
           {/* Savings vs Fuel */}
           {arbitrageResult && (
             <MetricCard
@@ -1697,38 +1729,6 @@ export default function HashrateHeating() {
               />
             )}
           </MetricCard>
-
-          {/* Effective Heat Cost */}
-          <MetricCard
-            icon={DollarSign}
-            label="Effective Heat Cost"
-            value={`$${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`}
-            secondaryValue={`$${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`}
-            tertiaryValue={fuelEquivalentCost ? `$${fuelEquivalentCost.value.toFixed(2)}/${fuelEquivalentCost.unit}` : undefined}
-            tooltip={`Your net cost per unit of heat after Bitcoin mining revenue offset. Formula: (Daily Electricity Cost - Daily Mining Revenue) / Daily kWh. Negative values mean you're being paid to heat.${fuelEquivalentCost ? ` The ${fuelEquivalentCost.label} rate lets you compare directly to your ${FUEL_SPECS[fuelType].label} bills.` : ''}`}
-            variant={copeResult.effectiveCostPerKwh <= 0 ? 'success' : 'default'}
-          />
-
-          {/* Break-even Rate */}
-          <MetricCard
-            icon={Zap}
-            label="Break-even Rate"
-            value={`$${copeResult.breakevenRate.toFixed(3)}/kWh`}
-            subValue="Free heating & profitable mining below this rate"
-            tooltip="The maximum electricity rate for free heating. Formula: (Daily BTC Mined × BTC Price) / Daily kWh. At this rate, R = 100% and COPe = ∞. Below this rate, you profit while heating. This rate changes with BTC price and network hashrate — lock in low electricity rates to maintain profitability through market cycles."
-            variant="default"
-          />
-
-          {/* Heating Power */}
-          <MetricCard
-            icon={Gauge}
-            label="Heating Power / Unit"
-            value={`${(miner.powerW / 1000).toFixed(1)} kW`}
-            secondaryValue={`${(miner.powerW * 3.412).toLocaleString(undefined, { maximumFractionDigits: 0 })} BTU/h`}
-            tertiaryValue={`${((miner.powerW * 3.412) / 12000).toFixed(2)} tons`}
-            tooltip="Thermal output of your miner. Bitcoin miners convert 100% of electrical power to heat. Conversions: 1 W = 3.412 BTU/h, 1 ton = 12,000 BTU/h. Compare to furnace capacity (40,000-120,000 BTU/h typical) or room heaters (5,000-10,000 BTU/h). A 5kW miner provides ~17,000 BTU/h — enough to heat a large room or small home in moderate climates."
-            variant="default"
-          />
         </div>
       )}
 

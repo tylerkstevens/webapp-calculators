@@ -227,10 +227,10 @@ export default function StateHeatMap({
 
   // Render mini map for collapsed state
   const renderMiniMap = () => (
-    <div className="w-24 sm:w-32 h-10 sm:h-12 flex-shrink-0 overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
+    <div className="w-32 sm:w-40 h-14 sm:h-16 flex-shrink-0 overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
       <ComposableMap
         projection="geoAlbersUsa"
-        projectionConfig={{ scale: 280 }}
+        projectionConfig={{ scale: 380 }}
         style={{ width: '100%', height: '100%' }}
       >
         <Geographies geography={GEO_URL}>

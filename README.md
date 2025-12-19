@@ -12,7 +12,7 @@ An interactive web calculator that helps you understand the economics of using B
 
 ## What is Hashrate Heating?
 
-Hashrate heating uses Bitcoin mining hardware to heat your home or business while earning Bitcoin. The key insight:
+Hashrate heating uses bitcoin mining hardware to electrically heat your home or business while earning revenue. The key insight:
 
 - **100% Heat Efficiency** — Every watt of electricity consumed by a miner becomes heat
 - **Dual Revenue** — You get both heat AND Bitcoin mining rewards
