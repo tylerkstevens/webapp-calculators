@@ -72,23 +72,24 @@ function MetricCard({
   }
 
   return (
-    <div className={`rounded-xl border p-5 ${bgColors[variant]}`}>
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className="w-5 h-5 text-surface-500" />}
-          <span className="text-sm font-medium text-surface-600">{label}</span>
+    <div className={`rounded-xl border p-3 sm:p-5 min-h-[120px] sm:min-h-[140px] flex flex-col ${bgColors[variant]}`}>
+      <div className="flex items-start justify-between mb-1.5 sm:mb-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {Icon && <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-surface-500" />}
+          <span className="text-xs sm:text-sm font-medium text-surface-600">{label}</span>
         </div>
         {tooltip && <Tooltip content={tooltip} />}
       </div>
-      <div className={`text-2xl font-bold ${valueColors[variant]}`}>{value}</div>
+      <div className={`text-lg sm:text-2xl font-bold ${valueColors[variant]}`}>{value}</div>
       {secondaryValue && (
-        <div className="text-lg font-semibold text-surface-700 mt-1">{secondaryValue}</div>
+        <div className="text-sm sm:text-lg font-semibold text-surface-700 mt-0.5 sm:mt-1">{secondaryValue}</div>
       )}
       {tertiaryValue && (
-        <div className="text-base font-medium text-surface-600">{tertiaryValue}</div>
+        <div className="text-xs sm:text-base font-medium text-surface-600">{tertiaryValue}</div>
       )}
+      <div className="flex-grow" />
       {subValue && (
-        <div className="text-xs text-surface-500 mt-2">{subValue}</div>
+        <div className="text-[10px] sm:text-xs text-surface-500 mt-1.5 sm:mt-2">{subValue}</div>
       )}
     </div>
   )
@@ -315,100 +316,113 @@ export default function HashrateHeating() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-surface-900">Hashrate Heating</h1>
-        <p className="text-surface-600 mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-surface-900">Hashrate Heating</h1>
+        <p className="text-sm sm:text-base text-surface-600 mt-1">
           Calculate the economic efficiency of heating with Bitcoin miners
         </p>
       </div>
 
       {/* Bitcoin Data Header */}
-      <div className="bg-white rounded-xl border border-surface-200 p-4">
+      <div className="bg-white rounded-xl border border-surface-200 p-3 sm:p-4">
         {loadingBtc ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2 py-4">
             <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
-            <span className="text-surface-600">Loading Bitcoin network data...</span>
+            <span className="text-sm sm:text-base text-surface-600">Loading Bitcoin network data...</span>
           </div>
         ) : (
-          <div className="space-y-3">
-            {/* Override indicator and reset button */}
-            {hasOverrides && (
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-amber-600 font-medium flex items-center gap-1">
-                  <Pencil className="w-3 h-3" />
-                  Custom scenario mode
-                </span>
+          <div className="space-y-2 sm:space-y-3">
+            {/* Header row with title and reset button */}
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] sm:text-xs text-surface-500 uppercase tracking-wide font-medium">
+                Bitcoin Network Data
+                {!hasOverrides && <span className="ml-1 sm:ml-2 text-green-600 font-normal">(Live)</span>}
+              </div>
+              {hasOverrides && (
                 <button
                   onClick={() => {
                     setBtcPriceOverride('')
                     setHashvalueOverride('')
                   }}
-                  className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium"
+                  className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-primary-600 hover:text-primary-700 font-medium px-1.5 sm:px-2 py-1 rounded hover:bg-primary-50 transition-colors"
                 >
                   <RefreshCw className="w-3 h-3" />
-                  Reset to live data
+                  <span className="hidden xs:inline">Reset to live data</span>
+                  <span className="xs:hidden">Reset</span>
                 </button>
-              </div>
-            )}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               {/* BTC Price - Editable */}
-              <div className="text-center">
-                <div className="text-xs text-surface-500 uppercase tracking-wide mb-1 flex items-center justify-center gap-1">
+              <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
+                btcPriceOverride
+                  ? 'bg-amber-50 border-2 border-amber-300'
+                  : 'bg-surface-50 border-2 border-dashed border-surface-300 hover:border-primary-400 hover:bg-primary-50/50 cursor-text'
+              }`}>
+                <div className="text-[9px] sm:text-[10px] text-surface-500 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                  <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${btcPriceOverride ? 'text-amber-500' : 'text-surface-400'}`} />
                   BTC Price
-                  {btcPriceOverride && <Pencil className="w-2.5 h-2.5 text-amber-500" />}
                 </div>
-                <div className="relative inline-block">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-surface-500 text-sm">$</span>
+                <div className="relative">
+                  <span className="absolute left-1/2 -translate-x-[2rem] sm:-translate-x-[2.5rem] top-1/2 -translate-y-1/2 text-surface-500 text-xs sm:text-sm font-medium">$</span>
                   <input
                     type="number"
                     value={btcPriceOverride || btcPrice?.toString() || ''}
                     onChange={(e) => setBtcPriceOverride(e.target.value)}
-                    className={`w-32 text-lg font-bold text-center py-1 pl-5 pr-2 rounded border ${
-                      btcPriceOverride
-                        ? 'border-amber-300 bg-amber-50 text-amber-700'
-                        : 'border-transparent hover:border-surface-300 text-surface-900'
-                    } focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
-                    placeholder={btcPrice?.toString()}
+                    className={`w-full text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
+                      btcPriceOverride ? 'text-amber-700' : 'text-surface-900'
+                    }`}
+                    placeholder={btcPrice?.toLocaleString()}
                   />
                 </div>
               </div>
+
               {/* Hashvalue - Editable */}
-              <div className="text-center">
-                <div className="text-xs text-surface-500 uppercase tracking-wide mb-1 flex items-center justify-center gap-1">
+              <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
+                hashvalueOverride
+                  ? 'bg-amber-50 border-2 border-amber-300'
+                  : 'bg-surface-50 border-2 border-dashed border-surface-300 hover:border-primary-400 hover:bg-primary-50/50 cursor-text'
+              }`}>
+                <div className="text-[9px] sm:text-[10px] text-surface-500 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                  <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${hashvalueOverride ? 'text-amber-500' : 'text-surface-400'}`} />
                   Hashvalue
-                  {hashvalueOverride && <Pencil className="w-2.5 h-2.5 text-amber-500" />}
                 </div>
-                <div className="flex items-center justify-center gap-1">
+                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
                   <input
                     type="number"
                     value={hashvalueOverride || networkMetrics?.hashvalue.toFixed(2) || ''}
                     onChange={(e) => setHashvalueOverride(e.target.value)}
                     step="0.01"
-                    className={`w-20 text-lg font-bold text-center py-1 px-2 rounded border ${
-                      hashvalueOverride
-                        ? 'border-amber-300 bg-amber-50 text-amber-700'
-                        : 'border-transparent hover:border-surface-300 text-orange-600'
-                    } focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
+                    className={`w-12 sm:w-16 text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
+                      hashvalueOverride ? 'text-amber-700' : 'text-orange-600'
+                    }`}
                     placeholder={networkMetrics?.hashvalue.toFixed(2)}
                   />
-                  <span className="text-sm font-normal text-surface-600">sats/TH/day</span>
+                  <span className="text-[9px] sm:text-xs text-surface-500">sats/TH/d</span>
                 </div>
               </div>
+
               {/* Hashprice - Calculated (not editable) */}
-              <div className="text-center">
-                <div className="text-xs text-surface-500 uppercase tracking-wide mb-1">Hashprice</div>
-                <div className="text-lg font-bold text-green-600">
-                  ${networkMetrics?.hashprice.toFixed(4)} <span className="text-sm font-normal">/TH/day</span>
+              <div className="rounded-lg p-2 sm:p-3 text-center bg-surface-50 border-2 border-transparent">
+                <div className="text-[9px] sm:text-[10px] text-surface-500 uppercase tracking-wider mb-0.5 sm:mb-1">
+                  Hashprice
                 </div>
+                <div className="text-base sm:text-xl font-bold text-green-600">
+                  ${networkMetrics?.hashprice.toFixed(4)}
+                </div>
+                <div className="text-[9px] sm:text-xs text-surface-500">/TH/day</div>
               </div>
-              {/* Network Hashrate - Derived when hashvalue is overridden */}
-              <div className="text-center">
-                <div className="text-xs text-surface-500 uppercase tracking-wide mb-1 flex items-center justify-center gap-1">
+
+              {/* Network Hashrate - Derived */}
+              <div className="rounded-lg p-2 sm:p-3 text-center bg-surface-50 border-2 border-transparent">
+                <div className="text-[9px] sm:text-[10px] text-surface-500 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
                   Network
-                  {hashvalueOverride && <span className="text-amber-500 text-[10px]">(implied)</span>}
+                  {hashvalueOverride && <span className="text-amber-500">(implied)</span>}
                 </div>
-                <div className="text-lg font-bold text-surface-700">
-                  {networkMetrics?.networkHashrateEH.toFixed(0)} <span className="text-sm font-normal">EH/s</span>
+                <div className="text-base sm:text-xl font-bold text-surface-700">
+                  {networkMetrics?.networkHashrateEH.toFixed(0)} EH/s
                 </div>
+                <div className="text-[9px] sm:text-xs text-surface-500">hashrate</div>
               </div>
             </div>
           </div>
@@ -416,8 +430,8 @@ export default function HashrateHeating() {
       </div>
 
       {/* Input Strip */}
-      <div className="bg-white rounded-xl border border-surface-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="bg-white rounded-xl border border-surface-200 p-4 sm:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {/* Miner Selection */}
           <div>
             <h3 className="text-sm font-semibold text-surface-700 mb-3 flex items-center gap-2">
@@ -605,7 +619,7 @@ export default function HashrateHeating() {
 
       {/* Results Grid */}
       {copeResult && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {/* Effective Heat Cost */}
           <MetricCard
             icon={DollarSign}
@@ -662,7 +676,7 @@ export default function HashrateHeating() {
           {/* Heating Power */}
           <MetricCard
             icon={Gauge}
-            label="Heating Power"
+            label="Heating Power / Unit"
             value={`${(miner.powerW / 1000).toFixed(1)} kW`}
             secondaryValue={`${(miner.powerW * 3.412).toLocaleString(undefined, { maximumFractionDigits: 0 })} BTU/h`}
             tertiaryValue={`${((miner.powerW * 3.412) / 12000).toFixed(2)} tons`}
@@ -685,7 +699,7 @@ export default function HashrateHeating() {
             : 'loss'
 
         return (
-          <div className={`rounded-xl p-4 ${
+          <div className={`rounded-xl p-3 sm:p-4 ${
             displayStatus === 'profitable'
               ? 'bg-green-50 border border-green-200'
               : displayStatus === 'subsidized'
@@ -693,35 +707,35 @@ export default function HashrateHeating() {
               : 'bg-amber-50 border border-amber-200'
           }`}>
             {displayStatus === 'profitable' && (
-              <div className="flex items-center gap-3 text-green-800">
-                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5" />
+              <div className="flex items-center gap-2 sm:gap-3 text-green-800">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
-                  <div className="font-semibold">Free or Paid Heating!</div>
-                  <div className="text-sm">Mining revenue exceeds electricity costs. You&apos;re effectively being paid to heat.</div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm sm:text-base">Free or Paid Heating!</div>
+                  <div className="text-xs sm:text-sm">Mining revenue exceeds electricity costs. You&apos;re effectively being paid to heat.</div>
                 </div>
               </div>
             )}
             {displayStatus === 'subsidized' && (
-              <div className="flex items-center gap-3 text-blue-800">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Percent className="w-5 h-5" />
+              <div className="flex items-center gap-2 sm:gap-3 text-blue-800">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <Percent className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
-                  <div className="font-semibold">Hashrate Heating Recommended</div>
-                  <div className="text-sm">{arbitrageResult ? `${arbitrageResult.savingsPercent.toFixed(0)}% savings` : 'Savings'} vs {FUEL_SPECS[fuelType].label}. Mining offsets {(copeResult.R * 100).toFixed(0)}% of your electricity cost.</div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm sm:text-base">Hashrate Heating Recommended</div>
+                  <div className="text-xs sm:text-sm">{arbitrageResult ? `${arbitrageResult.savingsPercent.toFixed(0)}% savings` : 'Savings'} vs {FUEL_SPECS[fuelType].label}. Mining offsets {(copeResult.R * 100).toFixed(0)}% of your electricity cost.</div>
                 </div>
               </div>
             )}
             {displayStatus === 'loss' && (
-              <div className="flex items-center gap-3 text-amber-800">
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                  <Info className="w-5 h-5" />
+              <div className="flex items-center gap-2 sm:gap-3 text-amber-800">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Info className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
-                  <div className="font-semibold">Keep Current Heating</div>
-                  <div className="text-sm">{FUEL_SPECS[fuelType].label} is {arbitrageResult ? `${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% cheaper` : 'cheaper'} than hashrate heating at current rates. Mining still offsets {(copeResult.R * 100).toFixed(0)}% of electricity.</div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm sm:text-base">Keep Current Heating</div>
+                  <div className="text-xs sm:text-sm">{FUEL_SPECS[fuelType].label} is {arbitrageResult ? `${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% cheaper` : 'cheaper'} than hashrate heating at current rates. Mining still offsets {(copeResult.R * 100).toFixed(0)}% of electricity.</div>
                 </div>
               </div>
             )}
