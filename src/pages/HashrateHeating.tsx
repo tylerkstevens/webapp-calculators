@@ -7,7 +7,6 @@ import SelectField from '../components/SelectField'
 import {
   calculateCOPe,
   calculateArbitrage,
-  calculateNetworkMetrics,
   getMinerEfficiency,
   formatCOPe,
   DEFAULT_CUSTOM_MINER,
@@ -18,7 +17,7 @@ import {
   BTCMetrics,
 } from '../calculations/hashrate'
 
-import { getBitcoinPrice, getNetworkStats } from '../api/bitcoin'
+import { getBraiinsData, BraiinsMetrics } from '../api/bitcoin'
 import {
   STATES_LIST,
   getStatePrices,
@@ -620,11 +619,14 @@ export default function HashrateHeating() {
   // State
   // ============================================================================
 
-  // Bitcoin data (from API)
-  const [btcPrice, setBtcPrice] = useState<number | null>(null)
-  const [networkHashrate, setNetworkHashrate] = useState<number | null>(null)
-  const [difficulty, setDifficulty] = useState<number>(0)
+  // Bitcoin data (from Braiins API)
+  const [braiinsData, setBraiinsData] = useState<BraiinsMetrics | null>(null)
   const [loadingBtc, setLoadingBtc] = useState(true)
+
+  // Derived values from Braiins data
+  const btcPrice = braiinsData?.btcPrice ?? null
+  const networkHashrate = braiinsData?.networkHashrate ?? null
+  const difficulty = braiinsData?.difficulty ?? 0
 
   // Manual overrides for scenario exploration
   const [btcPriceOverride, setBtcPriceOverride] = useState<string>('')
@@ -754,24 +756,16 @@ export default function HashrateHeating() {
   // Effects
   // ============================================================================
 
-  // Fetch BTC data on mount
+  // Fetch BTC data on mount (from Braiins API)
   useEffect(() => {
     async function fetchBtcData() {
       setLoadingBtc(true)
       try {
-        const [priceData, statsData] = await Promise.all([
-          getBitcoinPrice(),
-          getNetworkStats(),
-        ])
-        setBtcPrice(priceData.usd)
-        setNetworkHashrate(statsData.hashrate)
-        setDifficulty(statsData.difficulty)
+        const data = await getBraiinsData()
+        setBraiinsData(data)
       } catch (error) {
-        console.error('Failed to fetch BTC data:', error)
-        // Use fallbacks
-        setBtcPrice(100000)
-        setNetworkHashrate(700e6) // 700 EH/s in TH/s
-        setDifficulty(100e12)
+        console.error('Failed to fetch Braiins data:', error)
+        // Fallback values are returned by getBraiinsData on error
       } finally {
         setLoadingBtc(false)
       }
@@ -931,17 +925,28 @@ export default function HashrateHeating() {
     return networkHashrate
   }, [networkHashrateOverride, hashvalueOverride, networkHashrate])
 
-  // Calculate effective hashvalue (derived from network hashrate)
+  // Calculate effective hashvalue (derived from network hashrate or Braiins API)
   const effectiveHashvalue = useMemo(() => {
     if (hashvalueOverride) {
       const hv = parseFloat(hashvalueOverride)
       if (hv > 0) return hv
     }
+    // If networkHashrate is overridden, recalculate hashvalue for consistency
+    if (networkHashrateOverride) {
+      const nh = parseFloat(networkHashrateOverride)
+      if (nh > 0) return (144 * 3.125 * 1e8) / (nh * 1e6)
+    }
+    // Use Braiins hashvalue directly (includes fees, more accurate)
+    // Convert from BTC/TH/day to sats/TH/day
+    if (braiinsData?.hashvalue) {
+      return braiinsData.hashvalue * 1e8
+    }
+    // Fallback: calculate from network hashrate
     if (effectiveNetworkHashrate && effectiveNetworkHashrate > 0) {
       return (144 * 3.125 * 1e8) / effectiveNetworkHashrate
     }
     return null
-  }, [hashvalueOverride, effectiveNetworkHashrate])
+  }, [hashvalueOverride, networkHashrateOverride, braiinsData, effectiveNetworkHashrate])
 
   // KNOB 1: Calculate effective BTC price (Price group)
   // BTC Price and Hashprice are directly related via hashvalue
@@ -968,10 +973,37 @@ export default function HashrateHeating() {
     }
   }, [effectiveBtcPrice, effectiveNetworkHashrate])
 
+  // Calculate effective hashprice (from Braiins or derived from btcPrice and hashvalue)
+  const effectiveHashprice = useMemo(() => {
+    if (hashpriceOverride) {
+      const hp = parseFloat(hashpriceOverride)
+      if (hp > 0) return hp
+    }
+    // If btcPrice is overridden, recalculate hashprice for consistency
+    if (btcPriceOverride && effectiveHashvalue) {
+      const bp = parseFloat(btcPriceOverride)
+      if (bp > 0) return (effectiveHashvalue * bp) / 1e8
+    }
+    // Use Braiins hashprice directly when available
+    if (braiinsData?.hashprice) {
+      return braiinsData.hashprice
+    }
+    // Fallback: calculate from btcPrice and hashvalue
+    if (effectiveBtcPrice && effectiveHashvalue) {
+      return (effectiveHashvalue * effectiveBtcPrice) / 1e8
+    }
+    return null
+  }, [hashpriceOverride, btcPriceOverride, braiinsData, effectiveHashvalue, effectiveBtcPrice])
+
   const networkMetrics = useMemo(() => {
-    if (!btcMetrics) return null
-    return calculateNetworkMetrics(btcMetrics, difficulty)
-  }, [btcMetrics, difficulty])
+    if (!btcMetrics || !effectiveHashvalue) return null
+    return {
+      hashvalue: effectiveHashvalue,
+      hashprice: effectiveHashprice || (effectiveHashvalue * btcMetrics.btcPrice) / 1e8,
+      networkHashrateEH: btcMetrics.networkHashrate / 1e6,
+      difficulty,
+    }
+  }, [btcMetrics, effectiveHashvalue, effectiveHashprice, difficulty])
 
   const electricityRateNum = parseFloat(electricityRate) || 0.12
   const fuelRateNum = parseFloat(fuelRate) || 2.75
@@ -1759,7 +1791,7 @@ export default function HashrateHeating() {
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Keep Current Heating</div>
-                  <div className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">{FUEL_SPECS[fuelType].label} is {arbitrageResult ? `${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% cheaper` : 'cheaper'} than hashrate heating at current rates. Mining still offsets {(copeResult.R * 100).toFixed(0)}% of electricity.</div>
+                  <div className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">{FUEL_SPECS[fuelType].label} is {arbitrageResult ? `${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% cheaper` : 'cheaper'} than hashrate heating at current rates. Mining still offsets {(copeResult.R * 100).toFixed(0)}% of electric heating.</div>
                 </div>
               </div>
             )}
