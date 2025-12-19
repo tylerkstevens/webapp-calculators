@@ -28,10 +28,10 @@ import {
 function Tooltip({ content }: { content: string }) {
   return (
     <div className="group relative inline-block">
-      <HelpCircle className="w-4 h-4 text-surface-400 hover:text-surface-600 cursor-help" />
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
+      <HelpCircle className="w-4 h-4 text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 cursor-help" />
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-800 dark:bg-surface-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50">
         {content}
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-800" />
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-800 dark:border-t-surface-700" />
       </div>
     </div>
   )
@@ -58,38 +58,38 @@ function MetricCard({
   icon?: React.ComponentType<{ className?: string }>
 }) {
   const bgColors = {
-    default: 'bg-white border-surface-200',
-    success: 'bg-green-50 border-green-200',
-    warning: 'bg-red-50 border-red-200',
-    highlight: 'bg-blue-50 border-blue-200',
+    default: 'bg-white dark:bg-surface-800 border-surface-200 dark:border-surface-700',
+    success: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
+    warning: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+    highlight: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
   }
 
   const valueColors = {
-    default: 'text-surface-900',
-    success: 'text-green-700',
-    warning: 'text-red-700',
-    highlight: 'text-blue-700',
+    default: 'text-surface-900 dark:text-surface-100',
+    success: 'text-green-700 dark:text-green-400',
+    warning: 'text-red-700 dark:text-red-400',
+    highlight: 'text-blue-700 dark:text-blue-400',
   }
 
   return (
     <div className={`rounded-xl border p-3 sm:p-5 min-h-[120px] sm:min-h-[140px] flex flex-col ${bgColors[variant]}`}>
       <div className="flex items-start justify-between mb-1.5 sm:mb-2">
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {Icon && <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-surface-500" />}
-          <span className="text-xs sm:text-sm font-medium text-surface-600">{label}</span>
+          {Icon && <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-surface-500 dark:text-surface-400" />}
+          <span className="text-xs sm:text-sm font-medium text-surface-600 dark:text-surface-400">{label}</span>
         </div>
         {tooltip && <Tooltip content={tooltip} />}
       </div>
       <div className={`text-lg sm:text-2xl font-bold ${valueColors[variant]}`}>{value}</div>
       {secondaryValue && (
-        <div className="text-sm sm:text-lg font-semibold text-surface-700 mt-0.5 sm:mt-1">{secondaryValue}</div>
+        <div className="text-sm sm:text-lg font-semibold text-surface-700 dark:text-surface-300 mt-0.5 sm:mt-1">{secondaryValue}</div>
       )}
       {tertiaryValue && (
-        <div className="text-xs sm:text-base font-medium text-surface-600">{tertiaryValue}</div>
+        <div className="text-xs sm:text-base font-medium text-surface-600 dark:text-surface-400">{tertiaryValue}</div>
       )}
       <div className="flex-grow" />
       {subValue && (
-        <div className="text-[10px] sm:text-xs text-surface-500 mt-1.5 sm:mt-2">{subValue}</div>
+        <div className="text-[10px] sm:text-xs text-surface-500 dark:text-surface-400 mt-1.5 sm:mt-2">{subValue}</div>
       )}
     </div>
   )
@@ -306,6 +306,45 @@ export default function HashrateHeating() {
     return calculateArbitrage(fuelType, effectiveFuelRate, electricityRateNum, miner, btcMetrics, 1500, fuelEfficiencyNum)
   }, [fuelType, fuelRateNum, electricityRateNum, miner, btcMetrics, isElectricFuel, fuelEfficiencyNum])
 
+  // Calculate fuel-specific equivalent cost for comparison
+  // Shows $/therm for nat gas, $/gallon for propane/oil, nothing for electric
+  const fuelEquivalentCost = useMemo(() => {
+    if (!copeResult) return null
+
+    const costPerKwh = copeResult.effectiveCostPerKwh
+    const BTU_PER_KWH = 3412
+
+    switch (fuelType) {
+      case 'natural_gas':
+        // 1 therm = 100,000 BTU = 29.307 kWh
+        return {
+          value: costPerKwh * 29.307,
+          unit: 'therm',
+          label: '$/therm',
+        }
+      case 'propane':
+        // 1 gallon propane = 91,500 BTU = 26.82 kWh
+        return {
+          value: costPerKwh * (91500 / BTU_PER_KWH),
+          unit: 'gal',
+          label: '$/gal',
+        }
+      case 'heating_oil':
+        // 1 gallon heating oil = 138,500 BTU = 40.59 kWh
+        return {
+          value: costPerKwh * (138500 / BTU_PER_KWH),
+          unit: 'gal',
+          label: '$/gal',
+        }
+      case 'electric_resistance':
+      case 'heat_pump':
+        // No third unit needed - already comparing to $/kWh
+        return null
+      default:
+        return null
+    }
+  }, [copeResult, fuelType])
+
   const minerEfficiency = getMinerEfficiency(miner)
 
   // ============================================================================
@@ -316,26 +355,26 @@ export default function HashrateHeating() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-surface-900">Hashrate Heating</h1>
-        <p className="text-sm sm:text-base text-surface-600 mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-surface-100">Hashrate Heating</h1>
+        <p className="text-sm sm:text-base text-surface-600 dark:text-surface-400 mt-1">
           Calculate the economic efficiency of heating with Bitcoin miners
         </p>
       </div>
 
       {/* Bitcoin Data Header */}
-      <div className="bg-white rounded-xl border border-surface-200 p-3 sm:p-4">
+      <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-3 sm:p-4">
         {loadingBtc ? (
           <div className="flex items-center justify-center gap-2 py-4">
             <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
-            <span className="text-sm sm:text-base text-surface-600">Loading Bitcoin network data...</span>
+            <span className="text-sm sm:text-base text-surface-600 dark:text-surface-400">Loading Bitcoin network data...</span>
           </div>
         ) : (
           <div className="space-y-2 sm:space-y-3">
             {/* Header row with title and reset button */}
             <div className="flex items-center justify-between">
-              <div className="text-[10px] sm:text-xs text-surface-500 uppercase tracking-wide font-medium">
+              <div className="text-[10px] sm:text-xs text-surface-500 dark:text-surface-400 uppercase tracking-wide font-medium">
                 Bitcoin Network Data
-                {!hasOverrides && <span className="ml-1 sm:ml-2 text-green-600 font-normal">(Live)</span>}
+                {!hasOverrides && <span className="ml-1 sm:ml-2 text-green-600 dark:text-green-400 font-normal">(Live)</span>}
               </div>
               {hasOverrides && (
                 <button
@@ -343,7 +382,7 @@ export default function HashrateHeating() {
                     setBtcPriceOverride('')
                     setHashvalueOverride('')
                   }}
-                  className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-primary-600 hover:text-primary-700 font-medium px-1.5 sm:px-2 py-1 rounded hover:bg-primary-50 transition-colors"
+                  className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium px-1.5 sm:px-2 py-1 rounded hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
                 >
                   <RefreshCw className="w-3 h-3" />
                   <span className="hidden xs:inline">Reset to live data</span>
@@ -356,21 +395,21 @@ export default function HashrateHeating() {
               {/* BTC Price - Editable */}
               <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
                 btcPriceOverride
-                  ? 'bg-amber-50 border-2 border-amber-300'
-                  : 'bg-surface-50 border-2 border-dashed border-surface-300 hover:border-primary-400 hover:bg-primary-50/50 cursor-text'
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700'
+                  : 'bg-surface-50 dark:bg-surface-700/50 border-2 border-dashed border-surface-300 dark:border-surface-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/20 cursor-text'
               }`}>
-                <div className="text-[9px] sm:text-[10px] text-surface-500 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
-                  <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${btcPriceOverride ? 'text-amber-500' : 'text-surface-400'}`} />
+                <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                  <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${btcPriceOverride ? 'text-amber-500 dark:text-amber-400' : 'text-surface-400 dark:text-surface-500'}`} />
                   BTC Price
                 </div>
                 <div className="relative">
-                  <span className="absolute left-1/2 -translate-x-[2rem] sm:-translate-x-[2.5rem] top-1/2 -translate-y-1/2 text-surface-500 text-xs sm:text-sm font-medium">$</span>
+                  <span className="absolute left-1/2 -translate-x-[2rem] sm:-translate-x-[2.5rem] top-1/2 -translate-y-1/2 text-surface-500 dark:text-surface-400 text-xs sm:text-sm font-medium">$</span>
                   <input
                     type="number"
                     value={btcPriceOverride || btcPrice?.toString() || ''}
                     onChange={(e) => setBtcPriceOverride(e.target.value)}
                     className={`w-full text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
-                      btcPriceOverride ? 'text-amber-700' : 'text-surface-900'
+                      btcPriceOverride ? 'text-amber-700 dark:text-amber-400' : 'text-surface-900 dark:text-surface-100'
                     }`}
                     placeholder={btcPrice?.toLocaleString()}
                   />
@@ -380,11 +419,11 @@ export default function HashrateHeating() {
               {/* Hashvalue - Editable */}
               <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
                 hashvalueOverride
-                  ? 'bg-amber-50 border-2 border-amber-300'
-                  : 'bg-surface-50 border-2 border-dashed border-surface-300 hover:border-primary-400 hover:bg-primary-50/50 cursor-text'
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700'
+                  : 'bg-surface-50 dark:bg-surface-700/50 border-2 border-dashed border-surface-300 dark:border-surface-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/20 cursor-text'
               }`}>
-                <div className="text-[9px] sm:text-[10px] text-surface-500 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
-                  <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${hashvalueOverride ? 'text-amber-500' : 'text-surface-400'}`} />
+                <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                  <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${hashvalueOverride ? 'text-amber-500 dark:text-amber-400' : 'text-surface-400 dark:text-surface-500'}`} />
                   Hashvalue
                 </div>
                 <div className="flex items-center justify-center gap-0.5 sm:gap-1">
@@ -394,35 +433,35 @@ export default function HashrateHeating() {
                     onChange={(e) => setHashvalueOverride(e.target.value)}
                     step="0.01"
                     className={`w-12 sm:w-16 text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
-                      hashvalueOverride ? 'text-amber-700' : 'text-orange-600'
+                      hashvalueOverride ? 'text-amber-700 dark:text-amber-400' : 'text-orange-600 dark:text-orange-400'
                     }`}
                     placeholder={networkMetrics?.hashvalue.toFixed(2)}
                   />
-                  <span className="text-[9px] sm:text-xs text-surface-500">sats/TH/d</span>
+                  <span className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">sats/TH/d</span>
                 </div>
               </div>
 
               {/* Hashprice - Calculated (not editable) */}
-              <div className="rounded-lg p-2 sm:p-3 text-center bg-surface-50 border-2 border-transparent">
-                <div className="text-[9px] sm:text-[10px] text-surface-500 uppercase tracking-wider mb-0.5 sm:mb-1">
+              <div className="rounded-lg p-2 sm:p-3 text-center bg-surface-50 dark:bg-surface-700/50 border-2 border-transparent">
+                <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1">
                   Hashprice
                 </div>
-                <div className="text-base sm:text-xl font-bold text-green-600">
+                <div className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400">
                   ${networkMetrics?.hashprice.toFixed(4)}
                 </div>
-                <div className="text-[9px] sm:text-xs text-surface-500">/TH/day</div>
+                <div className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">/TH/day</div>
               </div>
 
               {/* Network Hashrate - Derived */}
-              <div className="rounded-lg p-2 sm:p-3 text-center bg-surface-50 border-2 border-transparent">
-                <div className="text-[9px] sm:text-[10px] text-surface-500 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+              <div className="rounded-lg p-2 sm:p-3 text-center bg-surface-50 dark:bg-surface-700/50 border-2 border-transparent">
+                <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
                   Network
-                  {hashvalueOverride && <span className="text-amber-500">(implied)</span>}
+                  {hashvalueOverride && <span className="text-amber-500 dark:text-amber-400">(implied)</span>}
                 </div>
-                <div className="text-base sm:text-xl font-bold text-surface-700">
+                <div className="text-base sm:text-xl font-bold text-surface-700 dark:text-surface-200">
                   {networkMetrics?.networkHashrateEH.toFixed(0)} EH/s
                 </div>
-                <div className="text-[9px] sm:text-xs text-surface-500">hashrate</div>
+                <div className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">hashrate</div>
               </div>
             </div>
           </div>
@@ -430,11 +469,11 @@ export default function HashrateHeating() {
       </div>
 
       {/* Input Strip */}
-      <div className="bg-white rounded-xl border border-surface-200 p-4 sm:p-6">
+      <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4 sm:p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {/* Miner Selection */}
           <div>
-            <h3 className="text-sm font-semibold text-surface-700 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
               <Zap className="w-4 h-4 text-primary-500" />
               Miner
             </h3>
@@ -447,8 +486,8 @@ export default function HashrateHeating() {
                 { value: 'custom', label: 'Custom Miner' },
               ]}
             />
-            <div className="mt-3 p-3 bg-surface-50 rounded-lg space-y-2">
-              <div className="text-xs text-surface-600 mb-2">
+            <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
+              <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">
                 {minerType === 'custom' ? 'Enter specs:' : 'Adjust specs:'}
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -473,7 +512,7 @@ export default function HashrateHeating() {
                   placeholder={DEFAULT_MINER.hashrateTH.toString()}
                 />
               </div>
-              <div className="text-xs text-surface-500 pt-1">
+              <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
                 Efficiency: {minerEfficiency.toFixed(1)} J/TH
               </div>
             </div>
@@ -481,7 +520,7 @@ export default function HashrateHeating() {
 
           {/* Electricity Rate */}
           <div>
-            <h3 className="text-sm font-semibold text-surface-700 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-primary-500" />
               Electricity
             </h3>
@@ -497,8 +536,8 @@ export default function HashrateHeating() {
               step={0.001}
               tooltip="Find your rate on your electric bill. Look for 'Price per kWh' or divide your total bill by kWh used. Include all charges (delivery, supply, taxes) for your true all-in rate. Or use the bill calculator below."
             />
-            <div className="mt-3 p-3 bg-surface-50 rounded-lg">
-              <div className="text-xs text-surface-600 mb-2">Calculate from bill:</div>
+            <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg">
+              <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">Calculate from bill:</div>
               <div className="grid grid-cols-2 gap-2">
                 <InputField
                   label="Bill"
@@ -522,7 +561,7 @@ export default function HashrateHeating() {
 
           {/* Fuel Type & Rate */}
           <div>
-            <h3 className="text-sm font-semibold text-surface-700 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
               <Flame className="w-4 h-4 text-orange-500" />
               Compare to Fuel
             </h3>
@@ -579,12 +618,12 @@ export default function HashrateHeating() {
             )}
             {/* Info message for electric fuel types */}
             {fuelType === 'electric_resistance' && (
-              <div className="mt-3 p-2 bg-blue-50 rounded-lg text-xs text-blue-700">
+              <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-xs text-blue-700 dark:text-blue-300">
                 Uses your ${electricityRateNum.toFixed(2)}/kWh rate at 100% efficiency
               </div>
             )}
             {fuelType === 'heat_pump' && (
-              <div className="mt-3 p-2 bg-blue-50 rounded-lg text-xs text-blue-700">
+              <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-xs text-blue-700 dark:text-blue-300">
                 Effective rate: ${(electricityRateNum / fuelEfficiencyNum).toFixed(3)}/kWh
               </div>
             )}
@@ -592,7 +631,7 @@ export default function HashrateHeating() {
 
           {/* State Selection */}
           <div>
-            <h3 className="text-sm font-semibold text-surface-700 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
               <Thermometer className="w-4 h-4 text-blue-500" />
               Your Region
             </h3>
@@ -609,7 +648,7 @@ export default function HashrateHeating() {
               ]}
             />
             {selectedState && (
-              <div className="mt-2 text-xs text-surface-500">
+              <div className="mt-2 text-xs text-surface-500 dark:text-surface-400">
                 Avg. electricity: ${getStatePrices(selectedState).electricity.toFixed(2)}/kWh
               </div>
             )}
@@ -626,8 +665,8 @@ export default function HashrateHeating() {
             label="Effective Heat Cost"
             value={`$${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`}
             secondaryValue={`$${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`}
-            tertiaryValue={`$${copeResult.effectiveCostPerTherm.toFixed(2)}/therm`}
-            tooltip="Your net cost per unit of heat after Bitcoin mining revenue offset. Formula: (Daily Electricity Cost - Daily Mining Revenue) / Daily kWh. Negative values mean you're being paid to heat. Conversions: $/MMBTU = $/kWh × 293.07, $/therm = $/kWh × 29.307. Compare these rates directly to your utility bills for natural gas, propane, or heating oil."
+            tertiaryValue={fuelEquivalentCost ? `$${fuelEquivalentCost.value.toFixed(2)}/${fuelEquivalentCost.unit}` : undefined}
+            tooltip={`Your net cost per unit of heat after Bitcoin mining revenue offset. Formula: (Daily Electricity Cost - Daily Mining Revenue) / Daily kWh. Negative values mean you're being paid to heat.${fuelEquivalentCost ? ` The ${fuelEquivalentCost.label} rate lets you compare directly to your ${FUEL_SPECS[fuelType].label} bills.` : ''}`}
             variant={copeResult.effectiveCostPerKwh <= 0 ? 'success' : 'default'}
           />
 
@@ -701,41 +740,41 @@ export default function HashrateHeating() {
         return (
           <div className={`rounded-xl p-3 sm:p-4 ${
             displayStatus === 'profitable'
-              ? 'bg-green-50 border border-green-200'
+              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
               : displayStatus === 'subsidized'
-              ? 'bg-blue-50 border border-blue-200'
-              : 'bg-amber-50 border border-amber-200'
+              ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+              : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800'
           }`}>
             {displayStatus === 'profitable' && (
-              <div className="flex items-center gap-2 sm:gap-3 text-green-800">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 text-green-800 dark:text-green-300">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 dark:bg-green-800/50 flex items-center justify-center flex-shrink-0">
                   <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Free or Paid Heating!</div>
-                  <div className="text-xs sm:text-sm">Mining revenue exceeds electricity costs. You&apos;re effectively being paid to heat.</div>
+                  <div className="text-xs sm:text-sm text-green-700 dark:text-green-400">Mining revenue exceeds electricity costs. You&apos;re effectively being paid to heat.</div>
                 </div>
               </div>
             )}
             {displayStatus === 'subsidized' && (
-              <div className="flex items-center gap-2 sm:gap-3 text-blue-800">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 text-blue-800 dark:text-blue-300">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-100 dark:bg-blue-800/50 flex items-center justify-center flex-shrink-0">
                   <Percent className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Hashrate Heating Recommended</div>
-                  <div className="text-xs sm:text-sm">{arbitrageResult ? `${arbitrageResult.savingsPercent.toFixed(0)}% savings` : 'Savings'} vs {FUEL_SPECS[fuelType].label}. Mining offsets {(copeResult.R * 100).toFixed(0)}% of your electricity cost.</div>
+                  <div className="text-xs sm:text-sm text-blue-700 dark:text-blue-400">{arbitrageResult ? `${arbitrageResult.savingsPercent.toFixed(0)}% savings` : 'Savings'} vs {FUEL_SPECS[fuelType].label}. Mining offsets {(copeResult.R * 100).toFixed(0)}% of your electricity cost.</div>
                 </div>
               </div>
             )}
             {displayStatus === 'loss' && (
-              <div className="flex items-center gap-2 sm:gap-3 text-amber-800">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 text-amber-800 dark:text-amber-300">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-amber-100 dark:bg-amber-800/50 flex items-center justify-center flex-shrink-0">
                   <Info className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Keep Current Heating</div>
-                  <div className="text-xs sm:text-sm">{FUEL_SPECS[fuelType].label} is {arbitrageResult ? `${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% cheaper` : 'cheaper'} than hashrate heating at current rates. Mining still offsets {(copeResult.R * 100).toFixed(0)}% of electricity.</div>
+                  <div className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">{FUEL_SPECS[fuelType].label} is {arbitrageResult ? `${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% cheaper` : 'cheaper'} than hashrate heating at current rates. Mining still offsets {(copeResult.R * 100).toFixed(0)}% of electricity.</div>
                 </div>
               </div>
             )}

@@ -1,87 +1,80 @@
 import { Link } from 'react-router-dom'
-import { Flame, Sun, Zap, ClipboardList, ArrowRight } from 'lucide-react'
+import { Flame, ArrowRight, Globe, MessageCircle, BookOpen, Github } from 'lucide-react'
 
+// Active calculators (Phase 1)
 const calculators = [
   {
     path: '/hashrate',
-    title: 'Hashrate Heating',
-    description: 'Quick KPIs for hashrate heating economics. Calculate your COPe (Coefficient of Performance - Economic) and compare heating costs vs traditional fuels.',
+    title: 'Hashrate Heating Calculator',
+    description: 'Calculate your COPe (Coefficient of Performance - Economic) and compare heating costs vs traditional fuels. See how much Bitcoin mining can subsidize your heating bills.',
     icon: Flame,
     color: 'bg-orange-500',
-    complexity: 'Simple',
-  },
-  {
-    path: '/solar',
-    title: 'Solar Mining',
-    description: 'Estimate Bitcoin mining potential from your solar system. See annual production, mining revenue, and compare excess solar value: grid credits vs BTC.',
-    icon: Sun,
-    color: 'bg-yellow-500',
-    complexity: 'Simple',
-  },
-  {
-    path: '/combined',
-    title: 'Heat + Solar',
-    description: 'Combined analysis for buildings with both heating needs and solar production. Seasonal duty cycle optimization and year-round economic projections.',
-    icon: Zap,
-    color: 'bg-blue-500',
-    complexity: 'Combined',
-  },
-  {
-    path: '/audit',
-    title: 'Exergy Audit',
-    description: 'Comprehensive energy analysis. Analyze heat loss from utility bills or building specs, get miner sizing recommendations, and detailed ROI projections.',
-    icon: ClipboardList,
-    color: 'bg-purple-500',
-    complexity: 'Comprehensive',
   },
 ]
+
+// Hidden for now - Phase 2+
+// const futureCalculators = [
+//   {
+//     path: '/solar',
+//     title: 'Solar Mining',
+//     description: 'Estimate Bitcoin mining potential from your solar system.',
+//     icon: Sun,
+//     color: 'bg-yellow-500',
+//   },
+//   {
+//     path: '/combined',
+//     title: 'Heat + Solar',
+//     description: 'Combined analysis for buildings with both heating needs and solar production.',
+//     icon: Zap,
+//     color: 'bg-blue-500',
+//   },
+//   {
+//     path: '/audit',
+//     title: 'Exergy Audit',
+//     description: 'Comprehensive energy analysis with miner sizing recommendations.',
+//     icon: ClipboardList,
+//     color: 'bg-purple-500',
+//   },
+// ]
 
 export default function Home() {
   return (
     <div className="space-y-8 sm:space-y-12">
       {/* Hero Section */}
       <div className="text-center max-w-3xl mx-auto px-2">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-surface-900 mb-3 sm:mb-4">
-          Hashrate Heating Calculators
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-surface-900 dark:text-surface-100 mb-3 sm:mb-4">
+          Hashrate Heating Calculator
         </h1>
-        <p className="text-sm sm:text-base md:text-lg text-surface-600">
+        <p className="text-sm sm:text-base md:text-lg text-surface-600 dark:text-surface-400">
           Make informed decisions about your hashrate heating investment.
-          Start with simple KPIs or dive deep with comprehensive analysis.
+          Compare mining economics to traditional heating fuels.
         </p>
       </div>
 
-      {/* Calculator Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+      {/* Calculator Card - Single prominent card */}
+      <div className="max-w-2xl mx-auto">
         {calculators.map((calc) => {
           const Icon = calc.icon
           return (
             <Link
               key={calc.path}
               to={calc.path}
-              className="group bg-white rounded-xl border border-surface-200 p-3 sm:p-6 hover:shadow-lg hover:border-primary-200 transition-all duration-300"
+              className="group block bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-6 sm:p-8 hover:shadow-lg hover:border-primary-200 dark:hover:border-primary-700 transition-all duration-300"
             >
-              <div className="flex items-start justify-between mb-2 sm:mb-4">
-                <div className={`${calc.color} w-8 h-8 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center`}>
-                  <Icon className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+              <div className="flex items-center gap-4 mb-4">
+                <div className={`${calc.color} w-12 h-12 sm:w-14 sm:h-14 rounded-lg flex items-center justify-center`}>
+                  <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                 </div>
-                <span className={`text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full ${
-                  calc.complexity === 'Simple' ? 'bg-green-100 text-green-700' :
-                  calc.complexity === 'Combined' ? 'bg-blue-100 text-blue-700' :
-                  'bg-purple-100 text-purple-700'
-                }`}>
-                  {calc.complexity}
-                </span>
+                <h2 className="text-xl sm:text-2xl font-semibold text-surface-900 dark:text-surface-100 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                  {calc.title}
+                </h2>
               </div>
-              <h2 className="text-sm sm:text-xl font-semibold text-surface-900 mb-1 sm:mb-2 group-hover:text-primary-600 transition-colors">
-                {calc.title}
-              </h2>
-              <p className="text-surface-600 text-xs sm:text-sm mb-2 sm:mb-4 line-clamp-3 sm:line-clamp-none">
+              <p className="text-surface-600 dark:text-surface-400 text-sm sm:text-base mb-4">
                 {calc.description}
               </p>
-              <div className="flex items-center text-primary-600 font-medium text-xs sm:text-sm">
-                <span className="hidden sm:inline">Open Calculator</span>
-                <span className="sm:hidden">Open</span>
-                <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+              <div className="flex items-center text-primary-600 dark:text-primary-400 font-medium text-sm sm:text-base">
+                <span>Open Calculator</span>
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </div>
             </Link>
           )
@@ -89,24 +82,53 @@ export default function Home() {
       </div>
 
       {/* Info Section */}
-      <div className="bg-primary-50 rounded-xl p-4 sm:p-8 text-center">
-        <h2 className="text-lg sm:text-2xl font-semibold text-surface-900 mb-2 sm:mb-4">
+      <div className="bg-primary-50 dark:bg-primary-900/20 rounded-xl p-4 sm:p-8 text-center">
+        <h2 className="text-lg sm:text-2xl font-semibold text-surface-900 dark:text-surface-100 mb-2 sm:mb-4">
           What is Hashrate Heating?
         </h2>
-        <p className="text-sm sm:text-base text-surface-700 max-w-2xl mx-auto mb-4 sm:mb-6">
+        <p className="text-sm sm:text-base text-surface-700 dark:text-surface-300 max-w-2xl mx-auto mb-4 sm:mb-6">
           Hashrate heating uses Bitcoin mining hardware to heat your home or business
           while earning Bitcoin. The heat generated by mining is 100% efficient —
           every watt of electricity becomes heat, plus you earn cryptocurrency.
         </p>
-        <a
-          href="https://exergyheat.com/learn"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-primary-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium text-sm sm:text-base hover:bg-primary-700 transition-colors"
-        >
-          Learn More at Exergy
-          <ArrowRight className="w-4 h-4" />
-        </a>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-xl mx-auto">
+          <a
+            href="https://exergyheat.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg bg-white/50 dark:bg-surface-800/50 hover:bg-white dark:hover:bg-surface-800 transition-colors text-center"
+          >
+            <Globe className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            <span className="text-xs sm:text-sm font-medium text-surface-700 dark:text-surface-300">Website</span>
+          </a>
+          <a
+            href="https://support.exergyheat.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg bg-white/50 dark:bg-surface-800/50 hover:bg-white dark:hover:bg-surface-800 transition-colors text-center"
+          >
+            <MessageCircle className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            <span className="text-xs sm:text-sm font-medium text-surface-700 dark:text-surface-300">Community</span>
+          </a>
+          <a
+            href="https://docs.exergyheat.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg bg-white/50 dark:bg-surface-800/50 hover:bg-white dark:hover:bg-surface-800 transition-colors text-center"
+          >
+            <BookOpen className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            <span className="text-xs sm:text-sm font-medium text-surface-700 dark:text-surface-300">Docs</span>
+          </a>
+          <a
+            href="https://github.com/exergyheat"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg bg-white/50 dark:bg-surface-800/50 hover:bg-white dark:hover:bg-surface-800 transition-colors text-center"
+          >
+            <Github className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            <span className="text-xs sm:text-sm font-medium text-surface-700 dark:text-surface-300">GitHub</span>
+          </a>
+        </div>
       </div>
     </div>
   )

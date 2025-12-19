@@ -1,62 +1,71 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { Flame, Sun, Zap, ClipboardList, Home, Calculator } from 'lucide-react'
+import { Flame, Home, Calculator } from 'lucide-react'
+// Hidden for now - Phase 2+
+// import { Sun, Zap, ClipboardList } from 'lucide-react'
+import ThemeToggle from './ThemeToggle'
 
 const navItems = [
   { path: '/', label: 'Home', shortLabel: 'Home', icon: Home },
   { path: '/hashrate', label: 'Hashrate Heating', shortLabel: 'Heating', icon: Flame },
-  { path: '/solar', label: 'Solar Mining', shortLabel: 'Solar', icon: Sun },
-  { path: '/combined', label: 'Heat + Solar', shortLabel: 'Combined', icon: Zap },
-  { path: '/audit', label: 'Exergy Audit', shortLabel: 'Audit', icon: ClipboardList },
+  // Hidden for now - Phase 2+
+  // { path: '/solar', label: 'Solar Mining', shortLabel: 'Solar', icon: Sun },
+  // { path: '/combined', label: 'Heat + Solar', shortLabel: 'Combined', icon: Zap },
+  // { path: '/audit', label: 'Exergy Audit', shortLabel: 'Audit', icon: ClipboardList },
 ]
 
 export default function Layout() {
   const location = useLocation()
 
   return (
-    <div className="min-h-screen bg-surface-50 pb-16 md:pb-0">
+    <div className="min-h-screen bg-surface-50 dark:bg-surface-900 pb-16 md:pb-0 transition-colors">
       {/* Header */}
-      <header className="bg-white border-b border-surface-200 sticky top-0 z-40">
+      <header className="bg-white dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700 sticky top-0 z-40 transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <Link to="/" className="flex items-center gap-2">
               <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
                 <Calculator className="w-5 h-5 text-white" />
               </div>
-              <span className="font-semibold text-base sm:text-lg text-surface-900">
+              <span className="font-semibold text-base sm:text-lg text-surface-900 dark:text-surface-100">
                 Exergy Calculators
               </span>
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navItems.map((item) => {
-                const Icon = item.icon
-                const isActive = location.pathname === item.path
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`
-                      flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-                      transition-colors duration-200
-                      ${isActive
-                        ? 'bg-primary-50 text-primary-600'
-                        : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900'
-                      }
-                    `}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </nav>
+            <div className="flex items-center gap-2">
+              {/* Desktop Navigation */}
+              <nav className="hidden md:flex items-center gap-1">
+                {navItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = location.pathname === item.path
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`
+                        flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+                        transition-colors duration-200
+                        ${isActive
+                          ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
+                          : 'text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 hover:text-surface-900 dark:hover:text-surface-100'
+                        }
+                      `}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {item.label}
+                    </Link>
+                  )
+                })}
+              </nav>
+
+              {/* Theme Toggle */}
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </header>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-surface-200 z-50 safe-area-bottom">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-800 border-t border-surface-200 dark:border-surface-700 z-50 safe-area-bottom transition-colors">
         <div className="flex justify-around items-center h-16">
           {navItems.map((item) => {
             const Icon = item.icon
@@ -69,12 +78,12 @@ export default function Layout() {
                   flex flex-col items-center justify-center gap-0.5 px-2 py-2 min-w-[60px] rounded-lg
                   transition-colors duration-200
                   ${isActive
-                    ? 'text-primary-600'
-                    : 'text-surface-500'
+                    ? 'text-primary-600 dark:text-primary-400'
+                    : 'text-surface-500 dark:text-surface-400'
                   }
                 `}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-primary-600' : 'text-surface-400'}`} />
+                <Icon className={`w-5 h-5 ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400 dark:text-surface-500'}`} />
                 <span className="text-[10px] font-medium">{item.shortLabel}</span>
               </Link>
             )
@@ -88,15 +97,15 @@ export default function Layout() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-surface-200 mt-auto">
+      <footer className="bg-white dark:bg-surface-800 border-t border-surface-200 dark:border-surface-700 mt-auto transition-colors">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <p className="text-center text-sm text-surface-500">
+          <p className="text-center text-sm text-surface-500 dark:text-surface-400">
             Powered by{' '}
             <a
               href="https://exergyheat.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-600 hover:text-primary-700 font-medium"
+              className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium"
             >
               Exergy
             </a>

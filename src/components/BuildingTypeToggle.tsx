@@ -9,14 +9,14 @@ interface BuildingTypeToggleProps {
 
 export function BuildingTypeToggle({ value, onChange }: BuildingTypeToggleProps) {
   return (
-    <div className="flex rounded-lg bg-surface-100 p-1">
+    <div className="flex rounded-lg bg-surface-100 dark:bg-surface-800 p-1">
       <button
         type="button"
         onClick={() => onChange('existing')}
         className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
           value === 'existing'
-            ? 'bg-white text-primary-600 shadow-sm'
-            : 'text-surface-600 hover:text-surface-900'
+            ? 'bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm'
+            : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200'
         }`}
       >
         <Building2 className="w-4 h-4" />
@@ -27,8 +27,8 @@ export function BuildingTypeToggle({ value, onChange }: BuildingTypeToggleProps)
         onClick={() => onChange('new')}
         className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
           value === 'new'
-            ? 'bg-white text-primary-600 shadow-sm'
-            : 'text-surface-600 hover:text-surface-900'
+            ? 'bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm'
+            : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200'
         }`}
       >
         <HardHat className="w-4 h-4" />

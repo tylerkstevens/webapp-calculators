@@ -83,12 +83,12 @@ export function LocationPicker({
     <div className="space-y-3">
       {/* Address Input */}
       <div>
-        <label className="block text-sm font-medium text-surface-700 mb-1">
+        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">
           Location
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500" />
             <input
               type="text"
               value={inputAddress}
@@ -96,14 +96,14 @@ export function LocationPicker({
               onKeyDown={handleKeyDown}
               placeholder="Enter address, city, or ZIP code"
               disabled={disabled || loading}
-              className="w-full pl-10 pr-4 py-2 border border-surface-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-surface-100 disabled:text-surface-500"
+              className="w-full pl-10 pr-4 py-2 border border-surface-300 dark:border-surface-600 rounded-lg bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100 placeholder-surface-400 dark:placeholder-surface-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-surface-100 dark:disabled:bg-surface-700 disabled:text-surface-500"
             />
           </div>
           <button
             type="button"
             onClick={handleGeocode}
             disabled={disabled || loading}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-surface-300 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-surface-300 dark:disabled:bg-surface-600 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -113,14 +113,14 @@ export function LocationPicker({
             <span className="hidden sm:inline">Search</span>
           </button>
         </div>
-        <p className="mt-1 text-xs text-surface-500">
+        <p className="mt-1 text-xs text-surface-500 dark:text-surface-400">
           Enter an address to automatically fetch climate data
         </p>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
@@ -128,7 +128,7 @@ export function LocationPicker({
 
       {/* Location Display */}
       {latitude !== null && longitude !== null && (
-        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg">
           <MapPin className="w-4 h-4 flex-shrink-0" />
           <span>
             Location set: {latitude.toFixed(4)}°N, {longitude.toFixed(4)}°W
@@ -141,7 +141,7 @@ export function LocationPicker({
         <button
           type="button"
           onClick={() => setShowManual(!showManual)}
-          className="text-sm text-primary-600 hover:text-primary-700 underline"
+          className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 underline"
         >
           {showManual ? 'Hide manual entry' : 'Enter coordinates manually'}
         </button>
@@ -149,10 +149,10 @@ export function LocationPicker({
 
       {/* Manual Coordinate Entry */}
       {showManual && (
-        <div className="p-3 bg-surface-50 rounded-lg space-y-3">
+        <div className="p-3 bg-surface-50 dark:bg-surface-800 rounded-lg space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-surface-600 mb-1">
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
                 Latitude
               </label>
               <input
@@ -161,11 +161,11 @@ export function LocationPicker({
                 onChange={(e) => setManualLat(e.target.value)}
                 placeholder="e.g., 40.7128"
                 step="0.0001"
-                className="w-full px-3 py-2 text-sm border border-surface-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 text-sm border border-surface-300 dark:border-surface-600 rounded-lg bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-surface-600 mb-1">
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
                 Longitude
               </label>
               <input
@@ -174,14 +174,14 @@ export function LocationPicker({
                 onChange={(e) => setManualLon(e.target.value)}
                 placeholder="e.g., -74.0060"
                 step="0.0001"
-                className="w-full px-3 py-2 text-sm border border-surface-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-3 py-2 text-sm border border-surface-300 dark:border-surface-600 rounded-lg bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
             </div>
           </div>
           <button
             type="button"
             onClick={handleManualSubmit}
-            className="w-full px-3 py-2 text-sm bg-surface-200 text-surface-700 rounded-lg hover:bg-surface-300"
+            className="w-full px-3 py-2 text-sm bg-surface-200 dark:bg-surface-700 text-surface-700 dark:text-surface-300 rounded-lg hover:bg-surface-300 dark:hover:bg-surface-600"
           >
             Set Coordinates
           </button>
