@@ -29,10 +29,10 @@ export default {
           900: '#29384f',
         },
         surface: {
-          50: '#fafafa',
-          100: '#f4f4f5',
-          200: '#e4e4e7',
-          300: '#d4d4d8',
+          50: '#f5f5f3',   // Warmer, less bright background
+          100: '#efeeed',  // Softer off-white
+          200: '#e3e2df',  // Warm gray
+          300: '#d4d3d0',  // Slightly warm
           400: '#a1a1aa',
           500: '#71717a',
           600: '#52525b',

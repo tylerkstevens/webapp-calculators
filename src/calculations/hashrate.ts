@@ -56,11 +56,18 @@ export interface ArbitrageResult {
 // ============================================================================
 
 export const MINER_PRESETS: MinerSpec[] = [
+  { name: 'Heatbit Trio', powerW: 400, hashrateTH: 10 },
+  { name: 'Avalon Mini 3', powerW: 850, hashrateTH: 40 },
+  { name: 'Avalon Q', powerW: 1700, hashrateTH: 90 },
   { name: 'Heat Core HS05', powerW: 5000, hashrateTH: 228 },
 ]
 
-// Default miner for the calculator
-export const DEFAULT_MINER = MINER_PRESETS[0]
+// Default custom miner specs for the calculator
+export const DEFAULT_CUSTOM_MINER: MinerSpec = {
+  name: 'Custom',
+  powerW: 1000,
+  hashrateTH: 50,
+}
 
 // Fuel heating efficiency and BTU content
 export const FUEL_SPECS = {

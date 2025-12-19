@@ -10,7 +10,8 @@ import {
   calculateNetworkMetrics,
   getMinerEfficiency,
   formatCOPe,
-  DEFAULT_MINER,
+  DEFAULT_CUSTOM_MINER,
+  MINER_PRESETS,
   FUEL_SPECS,
   FuelType,
   MinerSpec,
@@ -109,11 +110,13 @@ export default function HashrateHeating() {
   // Manual overrides for scenario exploration
   const [btcPriceOverride, setBtcPriceOverride] = useState<string>('')
   const [hashvalueOverride, setHashvalueOverride] = useState<string>('')
+  const [hashpriceOverride, setHashpriceOverride] = useState<string>('')
+  const [networkHashrateOverride, setNetworkHashrateOverride] = useState<string>('')
 
-  // Miner inputs
-  const [minerType, setMinerType] = useState('default') // 'default' or 'custom'
-  const [minerPower, setMinerPower] = useState(DEFAULT_MINER.powerW.toString())
-  const [minerHashrate, setMinerHashrate] = useState(DEFAULT_MINER.hashrateTH.toString())
+  // Miner inputs - 'custom' or index into MINER_PRESETS
+  const [minerType, setMinerType] = useState('custom')
+  const [minerPower, setMinerPower] = useState(DEFAULT_CUSTOM_MINER.powerW.toString())
+  const [minerHashrate, setMinerHashrate] = useState(DEFAULT_CUSTOM_MINER.hashrateTH.toString())
 
   // Electricity inputs
   const [electricityRate, setElectricityRate] = useState('0.12')
@@ -198,41 +201,74 @@ export default function HashrateHeating() {
   // Handler for miner type selection
   const handleMinerTypeChange = (value: string) => {
     setMinerType(value)
-    if (value === 'default') {
-      // Reset to default miner values
-      setMinerPower(DEFAULT_MINER.powerW.toString())
-      setMinerHashrate(DEFAULT_MINER.hashrateTH.toString())
-    } else if (value === 'custom') {
-      // Clear values for custom input
-      setMinerPower('')
-      setMinerHashrate('')
+    if (value === 'custom') {
+      // Reset to default custom miner values
+      setMinerPower(DEFAULT_CUSTOM_MINER.powerW.toString())
+      setMinerHashrate(DEFAULT_CUSTOM_MINER.hashrateTH.toString())
+    } else {
+      // It's a preset index
+      const presetIndex = parseInt(value, 10)
+      const preset = MINER_PRESETS[presetIndex]
+      if (preset) {
+        setMinerPower(preset.powerW.toString())
+        setMinerHashrate(preset.hashrateTH.toString())
+      }
     }
   }
 
-  // Handler for power input - auto-switch to custom if different from default
+  // Handler for power input - auto-switch to custom if different from preset
   const handlePowerChange = (value: string) => {
     setMinerPower(value)
-    const numValue = parseFloat(value)
-    if (minerType === 'default' && numValue !== DEFAULT_MINER.powerW) {
+    if (minerType !== 'custom') {
       setMinerType('custom')
     }
   }
 
-  // Handler for hashrate input - auto-switch to custom if different from default
+  // Handler for hashrate input - auto-switch to custom if different from preset
   const handleHashrateChange = (value: string) => {
     setMinerHashrate(value)
-    const numValue = parseFloat(value)
-    if (minerType === 'default' && numValue !== DEFAULT_MINER.hashrateTH) {
+    if (minerType !== 'custom') {
       setMinerType('custom')
     }
+  }
+
+  // Handlers for Bitcoin metric overrides with GROUP-based conflict resolution
+  // Two independent "knobs":
+  //   Knob 1 (Price): BTC Price ↔ Hashprice (editing one implies the other)
+  //   Knob 2 (Network): Network Hashrate ↔ Hashvalue (editing one implies the other)
+
+  // Price group handlers
+  const handleBtcPriceOverride = (value: string) => {
+    setBtcPriceOverride(value)
+    setHashpriceOverride('')  // Clear other in same group
+  }
+
+  const handleHashpriceOverride = (value: string) => {
+    setHashpriceOverride(value)
+    setBtcPriceOverride('')   // Clear other in same group
+  }
+
+  // Network group handlers
+  const handleHashvalueOverride = (value: string) => {
+    setHashvalueOverride(value)
+    setNetworkHashrateOverride('')  // Clear other in same group
+  }
+
+  const handleNetworkHashrateOverride = (value: string) => {
+    setNetworkHashrateOverride(value)
+    setHashvalueOverride('')  // Clear other in same group
   }
 
   const miner: MinerSpec = useMemo(() => {
-    const power = parseFloat(minerPower) || DEFAULT_MINER.powerW
-    const hashrate = parseFloat(minerHashrate) || DEFAULT_MINER.hashrateTH
+    const power = parseFloat(minerPower) || DEFAULT_CUSTOM_MINER.powerW
+    const hashrate = parseFloat(minerHashrate) || DEFAULT_CUSTOM_MINER.hashrateTH
 
-    if (minerType === 'default') {
-      return DEFAULT_MINER
+    if (minerType !== 'custom') {
+      const presetIndex = parseInt(minerType, 10)
+      const preset = MINER_PRESETS[presetIndex]
+      if (preset) {
+        return preset
+      }
     }
     return {
       name: 'Custom',
@@ -242,25 +278,65 @@ export default function HashrateHeating() {
   }, [minerType, minerPower, minerHashrate])
 
   // Check if user has any overrides active
-  const hasOverrides = btcPriceOverride !== '' || hashvalueOverride !== ''
+  const hasOverrides = btcPriceOverride !== '' || hashvalueOverride !== '' ||
+                       hashpriceOverride !== '' || networkHashrateOverride !== ''
 
-  // Calculate effective BTC price (override or API value)
-  const effectiveBtcPrice = btcPriceOverride
-    ? parseFloat(btcPriceOverride) || btcPrice
-    : btcPrice
+  // ============================================================================
+  // TWO-KNOB CALCULATION MODEL
+  // ============================================================================
+  // Knob 1 (Price): BTC Price ↔ Hashprice
+  //   - hashprice = hashvalue × btcPrice / 1e8
+  //   - btcPrice = hashprice × 1e8 / hashvalue
+  //
+  // Knob 2 (Network): Network Hashrate ↔ Hashvalue
+  //   - hashvalue = (144 × 3.125 × 1e8) / networkHashrate
+  //   - networkHashrate = (144 × 3.125 × 1e8) / hashvalue
+  // ============================================================================
 
-  // Calculate effective network hashrate
-  // If hashvalue is overridden, back-calculate network hashrate from: hashvalue = (144 × blockReward × 1e8) / networkHashrate
+  // KNOB 2: Calculate effective network hashrate (Network group)
+  // Network Hashrate and Hashvalue are inversely related
   const effectiveNetworkHashrate = useMemo(() => {
+    if (networkHashrateOverride) {
+      const nh = parseFloat(networkHashrateOverride)
+      if (nh > 0) return nh * 1e6 // Convert EH/s to TH/s
+    }
     if (hashvalueOverride) {
-      const hashval = parseFloat(hashvalueOverride)
-      if (hashval > 0) {
-        // networkHashrate = (144 × blockReward × 1e8) / hashvalue
-        return (144 * 3.125 * 1e8) / hashval
+      const hv = parseFloat(hashvalueOverride)
+      if (hv > 0) {
+        // Back-calculate: networkHashrate = (144 × 3.125 × 1e8) / hashvalue
+        return (144 * 3.125 * 1e8) / hv
       }
     }
     return networkHashrate
-  }, [hashvalueOverride, networkHashrate])
+  }, [networkHashrateOverride, hashvalueOverride, networkHashrate])
+
+  // Calculate effective hashvalue (derived from network hashrate)
+  const effectiveHashvalue = useMemo(() => {
+    if (hashvalueOverride) {
+      const hv = parseFloat(hashvalueOverride)
+      if (hv > 0) return hv
+    }
+    if (effectiveNetworkHashrate && effectiveNetworkHashrate > 0) {
+      return (144 * 3.125 * 1e8) / effectiveNetworkHashrate
+    }
+    return null
+  }, [hashvalueOverride, effectiveNetworkHashrate])
+
+  // KNOB 1: Calculate effective BTC price (Price group)
+  // BTC Price and Hashprice are directly related via hashvalue
+  const effectiveBtcPrice = useMemo(() => {
+    if (btcPriceOverride) {
+      return parseFloat(btcPriceOverride) || btcPrice
+    }
+    if (hashpriceOverride && effectiveHashvalue) {
+      const hp = parseFloat(hashpriceOverride)
+      if (hp > 0 && effectiveHashvalue > 0) {
+        // Back-calculate: btcPrice = hashprice × 1e8 / hashvalue
+        return (hp * 1e8) / effectiveHashvalue
+      }
+    }
+    return btcPrice
+  }, [btcPriceOverride, hashpriceOverride, effectiveHashvalue, btcPrice])
 
   const btcMetrics: BTCMetrics | null = useMemo(() => {
     if (effectiveBtcPrice === null || effectiveNetworkHashrate === null) return null
@@ -381,6 +457,8 @@ export default function HashrateHeating() {
                   onClick={() => {
                     setBtcPriceOverride('')
                     setHashvalueOverride('')
+                    setHashpriceOverride('')
+                    setNetworkHashrateOverride('')
                   }}
                   className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium px-1.5 sm:px-2 py-1 rounded hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
                 >
@@ -391,77 +469,133 @@ export default function HashrateHeating() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-              {/* BTC Price - Editable */}
-              <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
-                btcPriceOverride
-                  ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700'
-                  : 'bg-surface-50 dark:bg-surface-700/50 border-2 border-dashed border-surface-300 dark:border-surface-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/20 cursor-text'
-              }`}>
-                <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
-                  <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${btcPriceOverride ? 'text-amber-500 dark:text-amber-400' : 'text-surface-400 dark:text-surface-500'}`} />
-                  BTC Price
+            {/* Two-knob layout: Price group | Network group */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+              {/* KNOB 1: Price Group (BTC Price ↔ Hashprice) */}
+              <div className="rounded-lg border border-green-200 dark:border-green-800/50 bg-green-50/30 dark:bg-green-900/10 p-2 sm:p-3">
+                <div className="text-[8px] sm:text-[9px] text-green-600 dark:text-green-400 uppercase tracking-wider font-semibold mb-1.5 sm:mb-2 text-center">
+                  Market Price
                 </div>
-                <div className="relative">
-                  <span className="absolute left-1/2 -translate-x-[2rem] sm:-translate-x-[2.5rem] top-1/2 -translate-y-1/2 text-surface-500 dark:text-surface-400 text-xs sm:text-sm font-medium">$</span>
-                  <input
-                    type="number"
-                    value={btcPriceOverride || btcPrice?.toString() || ''}
-                    onChange={(e) => setBtcPriceOverride(e.target.value)}
-                    className={`w-full text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
-                      btcPriceOverride ? 'text-amber-700 dark:text-amber-400' : 'text-surface-900 dark:text-surface-100'
-                    }`}
-                    placeholder={btcPrice?.toLocaleString()}
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  {/* BTC Price - Editable */}
+                  <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
+                    btcPriceOverride
+                      ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-400 dark:border-green-600'
+                      : 'bg-white dark:bg-surface-800 border-2 border-dashed border-green-300 dark:border-green-700 hover:border-green-400 dark:hover:border-green-500 cursor-text'
+                  }`}>
+                    <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                      <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${btcPriceOverride ? 'text-green-600 dark:text-green-400' : 'text-surface-400 dark:text-surface-500'}`} />
+                      BTC Price
+                      {hashpriceOverride && !btcPriceOverride && (
+                        <span className="text-green-600 dark:text-green-400">(implied)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                      <span className="text-surface-500 dark:text-surface-400 text-xs sm:text-sm font-medium">$</span>
+                      <input
+                        type="number"
+                        value={btcPriceOverride || (hashpriceOverride ? effectiveBtcPrice?.toFixed(0) : btcPrice?.toString()) || ''}
+                        onChange={(e) => handleBtcPriceOverride(e.target.value)}
+                        className={`w-16 sm:w-24 text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
+                          btcPriceOverride ? 'text-green-700 dark:text-green-400' : 'text-surface-900 dark:text-surface-100'
+                        }`}
+                        placeholder={btcPrice?.toLocaleString()}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Hashprice - Editable */}
+                  <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
+                    hashpriceOverride
+                      ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-400 dark:border-green-600'
+                      : 'bg-white dark:bg-surface-800 border-2 border-dashed border-green-300 dark:border-green-700 hover:border-green-400 dark:hover:border-green-500 cursor-text'
+                  }`}>
+                    <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                      <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${hashpriceOverride ? 'text-green-600 dark:text-green-400' : 'text-surface-400 dark:text-surface-500'}`} />
+                      Hashprice
+                      {(btcPriceOverride || hashvalueOverride || networkHashrateOverride) && !hashpriceOverride && (
+                        <span className="text-green-600 dark:text-green-400">(implied)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                      <span className="text-surface-500 dark:text-surface-400 text-xs sm:text-sm">$</span>
+                      <input
+                        type="number"
+                        value={hashpriceOverride || networkMetrics?.hashprice.toFixed(4) || ''}
+                        onChange={(e) => handleHashpriceOverride(e.target.value)}
+                        step="0.0001"
+                        className={`w-14 sm:w-20 text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
+                          hashpriceOverride ? 'text-green-700 dark:text-green-400' : 'text-green-600 dark:text-green-400'
+                        }`}
+                        placeholder={networkMetrics?.hashprice.toFixed(4)}
+                      />
+                      <span className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">/TH/d</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Hashvalue - Editable */}
-              <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
-                hashvalueOverride
-                  ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700'
-                  : 'bg-surface-50 dark:bg-surface-700/50 border-2 border-dashed border-surface-300 dark:border-surface-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/20 cursor-text'
-              }`}>
-                <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
-                  <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${hashvalueOverride ? 'text-amber-500 dark:text-amber-400' : 'text-surface-400 dark:text-surface-500'}`} />
-                  Hashvalue
+              {/* KNOB 2: Network Group (Hashvalue ↔ Network Hashrate) */}
+              <div className="rounded-lg border border-orange-200 dark:border-orange-800/50 bg-orange-50/30 dark:bg-orange-900/10 p-2 sm:p-3">
+                <div className="text-[8px] sm:text-[9px] text-orange-600 dark:text-orange-400 uppercase tracking-wider font-semibold mb-1.5 sm:mb-2 text-center">
+                  Mining Network
                 </div>
-                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
-                  <input
-                    type="number"
-                    value={hashvalueOverride || networkMetrics?.hashvalue.toFixed(2) || ''}
-                    onChange={(e) => setHashvalueOverride(e.target.value)}
-                    step="0.01"
-                    className={`w-12 sm:w-16 text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
-                      hashvalueOverride ? 'text-amber-700 dark:text-amber-400' : 'text-orange-600 dark:text-orange-400'
-                    }`}
-                    placeholder={networkMetrics?.hashvalue.toFixed(2)}
-                  />
-                  <span className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">sats/TH/d</span>
-                </div>
-              </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Hashvalue - Editable */}
+                  <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
+                    hashvalueOverride
+                      ? 'bg-orange-100 dark:bg-orange-900/30 border-2 border-orange-400 dark:border-orange-600'
+                      : 'bg-white dark:bg-surface-800 border-2 border-dashed border-orange-300 dark:border-orange-700 hover:border-orange-400 dark:hover:border-orange-500 cursor-text'
+                  }`}>
+                    <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                      <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${hashvalueOverride ? 'text-orange-600 dark:text-orange-400' : 'text-surface-400 dark:text-surface-500'}`} />
+                      Hashvalue
+                      {networkHashrateOverride && !hashvalueOverride && (
+                        <span className="text-orange-600 dark:text-orange-400">(implied)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                      <input
+                        type="number"
+                        value={hashvalueOverride || networkMetrics?.hashvalue.toFixed(2) || ''}
+                        onChange={(e) => handleHashvalueOverride(e.target.value)}
+                        step="0.01"
+                        className={`w-12 sm:w-16 text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
+                          hashvalueOverride ? 'text-orange-700 dark:text-orange-400' : 'text-orange-600 dark:text-orange-400'
+                        }`}
+                        placeholder={networkMetrics?.hashvalue.toFixed(2)}
+                      />
+                      <span className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">sats/TH/d</span>
+                    </div>
+                  </div>
 
-              {/* Hashprice - Calculated (not editable) */}
-              <div className="rounded-lg p-2 sm:p-3 text-center bg-surface-50 dark:bg-surface-700/50 border-2 border-transparent">
-                <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1">
-                  Hashprice
+                  {/* Network Hashrate - Editable */}
+                  <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
+                    networkHashrateOverride
+                      ? 'bg-orange-100 dark:bg-orange-900/30 border-2 border-orange-400 dark:border-orange-600'
+                      : 'bg-white dark:bg-surface-800 border-2 border-dashed border-orange-300 dark:border-orange-700 hover:border-orange-400 dark:hover:border-orange-500 cursor-text'
+                  }`}>
+                    <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                      <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${networkHashrateOverride ? 'text-orange-600 dark:text-orange-400' : 'text-surface-400 dark:text-surface-500'}`} />
+                      Network
+                      {hashvalueOverride && !networkHashrateOverride && (
+                        <span className="text-orange-600 dark:text-orange-400">(implied)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                      <input
+                        type="number"
+                        value={networkHashrateOverride || networkMetrics?.networkHashrateEH.toFixed(0) || ''}
+                        onChange={(e) => handleNetworkHashrateOverride(e.target.value)}
+                        className={`w-12 sm:w-16 text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
+                          networkHashrateOverride ? 'text-orange-700 dark:text-orange-400' : 'text-surface-700 dark:text-surface-200'
+                        }`}
+                        placeholder={networkMetrics?.networkHashrateEH.toFixed(0)}
+                      />
+                      <span className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">EH/s</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400">
-                  ${networkMetrics?.hashprice.toFixed(4)}
-                </div>
-                <div className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">/TH/day</div>
-              </div>
-
-              {/* Network Hashrate - Derived */}
-              <div className="rounded-lg p-2 sm:p-3 text-center bg-surface-50 dark:bg-surface-700/50 border-2 border-transparent">
-                <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
-                  Network
-                  {hashvalueOverride && <span className="text-amber-500 dark:text-amber-400">(implied)</span>}
-                </div>
-                <div className="text-base sm:text-xl font-bold text-surface-700 dark:text-surface-200">
-                  {networkMetrics?.networkHashrateEH.toFixed(0)} EH/s
-                </div>
-                <div className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">hashrate</div>
               </div>
             </div>
           </div>
@@ -482,8 +616,11 @@ export default function HashrateHeating() {
               value={minerType}
               onChange={handleMinerTypeChange}
               options={[
-                { value: 'default', label: `${DEFAULT_MINER.name}` },
                 { value: 'custom', label: 'Custom Miner' },
+                ...MINER_PRESETS.map((preset, index) => ({
+                  value: index.toString(),
+                  label: preset.name,
+                })),
               ]}
             />
             <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
@@ -499,7 +636,7 @@ export default function HashrateHeating() {
                   type="number"
                   min={100}
                   max={15000}
-                  placeholder={DEFAULT_MINER.powerW.toString()}
+                  placeholder={DEFAULT_CUSTOM_MINER.powerW.toString()}
                 />
                 <InputField
                   label="Hashrate"
@@ -509,7 +646,7 @@ export default function HashrateHeating() {
                   type="number"
                   min={1}
                   max={1000}
-                  placeholder={DEFAULT_MINER.hashrateTH.toString()}
+                  placeholder={DEFAULT_CUSTOM_MINER.hashrateTH.toString()}
                 />
               </div>
               <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
@@ -536,7 +673,7 @@ export default function HashrateHeating() {
               step={0.001}
               tooltip="Find your rate on your electric bill. Look for 'Price per kWh' or divide your total bill by kWh used. Include all charges (delivery, supply, taxes) for your true all-in rate. Or use the bill calculator below."
             />
-            <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg">
+            <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
               <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">Calculate from bill:</div>
               <div className="grid grid-cols-2 gap-2">
                 <InputField
@@ -555,6 +692,9 @@ export default function HashrateHeating() {
                   type="number"
                   min={0}
                 />
+              </div>
+              <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
+                Auto-calculates rate above
               </div>
             </div>
           </div>
@@ -659,16 +799,17 @@ export default function HashrateHeating() {
       {/* Results Grid */}
       {copeResult && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {/* Effective Heat Cost */}
-          <MetricCard
-            icon={DollarSign}
-            label="Effective Heat Cost"
-            value={`$${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`}
-            secondaryValue={`$${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`}
-            tertiaryValue={fuelEquivalentCost ? `$${fuelEquivalentCost.value.toFixed(2)}/${fuelEquivalentCost.unit}` : undefined}
-            tooltip={`Your net cost per unit of heat after Bitcoin mining revenue offset. Formula: (Daily Electricity Cost - Daily Mining Revenue) / Daily kWh. Negative values mean you're being paid to heat.${fuelEquivalentCost ? ` The ${fuelEquivalentCost.label} rate lets you compare directly to your ${FUEL_SPECS[fuelType].label} bills.` : ''}`}
-            variant={copeResult.effectiveCostPerKwh <= 0 ? 'success' : 'default'}
-          />
+          {/* Savings vs Fuel */}
+          {arbitrageResult && (
+            <MetricCard
+              icon={Flame}
+              label={`Savings vs ${FUEL_SPECS[fuelType].label}`}
+              value={`${arbitrageResult.savingsPercent >= 0 ? '+' : ''}${arbitrageResult.savingsPercent.toFixed(0)}%`}
+              subValue={`${FUEL_SPECS[fuelType].label}: $${arbitrageResult.traditionalCostPerKwh.toFixed(3)}/kWh`}
+              tooltip="Percentage savings vs your selected fuel. Formula: ((Traditional $/kWh - Hashrate $/kWh) / Traditional $/kWh) × 100. Traditional fuel cost accounts for efficiency (AFUE for gas/oil, COP for heat pumps). Positive = you save money with hashrate heating. Negative = traditional fuel is cheaper at current BTC economics."
+              variant={arbitrageResult.savingsPercent > 50 ? 'success' : arbitrageResult.savingsPercent > 0 ? 'highlight' : 'warning'}
+            />
+          )}
 
           {/* COPe */}
           <MetricCard
@@ -690,17 +831,16 @@ export default function HashrateHeating() {
             variant={copeResult.R >= 1 ? 'success' : copeResult.R >= 0.5 ? 'highlight' : 'default'}
           />
 
-          {/* Savings vs Fuel */}
-          {arbitrageResult && (
-            <MetricCard
-              icon={Flame}
-              label={`Savings vs ${FUEL_SPECS[fuelType].label}`}
-              value={`${arbitrageResult.savingsPercent >= 0 ? '+' : ''}${arbitrageResult.savingsPercent.toFixed(0)}%`}
-              subValue={`${FUEL_SPECS[fuelType].label}: $${arbitrageResult.traditionalCostPerKwh.toFixed(3)}/kWh`}
-              tooltip="Percentage savings vs your selected fuel. Formula: ((Traditional $/kWh - Hashrate $/kWh) / Traditional $/kWh) × 100. Traditional fuel cost accounts for efficiency (AFUE for gas/oil, COP for heat pumps). Positive = you save money with hashrate heating. Negative = traditional fuel is cheaper at current BTC economics."
-              variant={arbitrageResult.savingsPercent > 50 ? 'success' : arbitrageResult.savingsPercent > 0 ? 'highlight' : 'warning'}
-            />
-          )}
+          {/* Effective Heat Cost */}
+          <MetricCard
+            icon={DollarSign}
+            label="Effective Heat Cost"
+            value={`$${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`}
+            secondaryValue={`$${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`}
+            tertiaryValue={fuelEquivalentCost ? `$${fuelEquivalentCost.value.toFixed(2)}/${fuelEquivalentCost.unit}` : undefined}
+            tooltip={`Your net cost per unit of heat after Bitcoin mining revenue offset. Formula: (Daily Electricity Cost - Daily Mining Revenue) / Daily kWh. Negative values mean you're being paid to heat.${fuelEquivalentCost ? ` The ${fuelEquivalentCost.label} rate lets you compare directly to your ${FUEL_SPECS[fuelType].label} bills.` : ''}`}
+            variant={copeResult.effectiveCostPerKwh <= 0 ? 'success' : 'default'}
+          />
 
           {/* Break-even Rate */}
           <MetricCard
