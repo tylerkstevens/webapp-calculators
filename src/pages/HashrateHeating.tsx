@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Flame, Zap, Info, Loader2, HelpCircle, TrendingUp, Percent, DollarSign, Thermometer, RefreshCw, Pencil, Gauge, ChevronDown } from 'lucide-react'
+import { Flame, Zap, Info, Loader2, TrendingUp, Percent, DollarSign, Thermometer, RefreshCw, Pencil, Gauge, ChevronDown } from 'lucide-react'
 
 import InputField from '../components/InputField'
 import SelectField from '../components/SelectField'
 import StateHeatMap from '../components/StateHeatMap'
+import SmartTooltip from '../components/SmartTooltip'
 
 import {
   calculateCOPe,
@@ -25,18 +26,6 @@ import {
   getDefaultFuelRate,
 } from '../data/fuelPrices'
 
-// Tooltip component
-function Tooltip({ content }: { content: string }) {
-  return (
-    <div className="group/tooltip relative inline-flex items-center">
-      <HelpCircle className="w-4 h-4 text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 cursor-help" />
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-800 dark:bg-surface-700 text-white text-xs rounded-lg scale-95 opacity-0 pointer-events-none group-hover/tooltip:scale-100 group-hover/tooltip:opacity-100 group-hover/tooltip:pointer-events-auto transition-all duration-150 w-64 z-[100] shadow-lg">
-        {content}
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-800 dark:border-t-surface-700" />
-      </div>
-    </div>
-  )
-}
 
 // Savings Chart component
 type ChartXAxisOption = 'electricity' | 'fuel' | 'efficiency' | 'hashprice'
@@ -590,7 +579,7 @@ function MetricCard({
           <span className="text-xs sm:text-sm font-medium text-surface-600 dark:text-surface-400">{label}</span>
         </div>
         <div className="flex items-center gap-1">
-          {tooltip && <Tooltip content={tooltip} />}
+          {tooltip && <SmartTooltip content={tooltip} />}
           {expandable && (
             <ChevronDown
               className={`w-4 h-4 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}

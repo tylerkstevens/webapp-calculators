@@ -263,6 +263,53 @@ export default function StateHeatMap({
     </div>
   )
 
+  // Render state table for mobile and large screen sidebar
+  const renderStateTable = () => (
+    <div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+        States ranked by {metricLabel}:
+      </div>
+      <div className="max-h-80 lg:max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
+            <tr className="text-left text-gray-500 dark:text-gray-400">
+              <th className="py-2 px-3">State</th>
+              <th className="py-2 px-3">Elec.</th>
+              <th className="py-2 px-3 text-right">{metricLabel}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedStates.map((state) => {
+              const metricValue = getMetricValue(state)
+              return (
+                <tr
+                  key={state.abbr}
+                  onClick={() => onStateClick?.(state.abbr)}
+                  className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                >
+                  <td className="py-2 px-3 font-medium text-gray-900 dark:text-gray-100">
+                    {state.abbr}
+                  </td>
+                  <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
+                    ${state.electricityRate.toFixed(2)}
+                  </td>
+                  <td className="py-2 px-3 text-right">
+                    <span
+                      className="inline-block px-2 py-0.5 rounded text-white text-[10px] font-medium"
+                      style={{ backgroundColor: getColorForMetric(metricValue, selectedMetric) }}
+                    >
+                      {formatMetricValue(metricValue, selectedMetric)}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+
   // Render full interactive map for expanded state
   const renderFullMap = () => (
     <div
@@ -478,54 +525,24 @@ export default function StateHeatMap({
             </div>
           </div>
 
-          {/* Desktop: Full map */}
-          <div className="hidden sm:block">
+          {/* Large screens: Map + Table side by side */}
+          <div className="hidden lg:flex lg:gap-6">
+            <div className="flex-1">
+              {renderFullMap()}
+            </div>
+            <div className="w-80 flex-shrink-0">
+              {renderStateTable()}
+            </div>
+          </div>
+
+          {/* Medium screens: Map only */}
+          <div className="hidden sm:block lg:hidden">
             {renderFullMap()}
           </div>
 
-          {/* Mobile: Simplified table view */}
+          {/* Mobile: Table only */}
           <div className="sm:hidden">
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              States ranked by {metricLabel}:
-            </div>
-            <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
-                  <tr className="text-left text-gray-500 dark:text-gray-400">
-                    <th className="py-2 px-3">State</th>
-                    <th className="py-2 px-3">Elec.</th>
-                    <th className="py-2 px-3 text-right">{metricLabel}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedStates.map((state) => {
-                    const metricValue = getMetricValue(state)
-                    return (
-                      <tr
-                        key={state.abbr}
-                        onClick={() => onStateClick?.(state.abbr)}
-                        className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
-                      >
-                        <td className="py-2 px-3 font-medium text-gray-900 dark:text-gray-100">
-                          {state.abbr}
-                        </td>
-                        <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
-                          ${state.electricityRate.toFixed(2)}
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          <span
-                            className="inline-block px-2 py-0.5 rounded text-white text-[10px] font-medium"
-                            style={{ backgroundColor: getColorForMetric(metricValue, selectedMetric) }}
-                          >
-                            {formatMetricValue(metricValue, selectedMetric)}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {renderStateTable()}
           </div>
 
           {/* Legend */}
