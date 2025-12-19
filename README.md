@@ -33,6 +33,10 @@ The calculator computes your **COPe (Coefficient of Performance - Economic)**, w
 - **Dark Mode** — Easy on the eyes
 - **Mobile Responsive** — Works on any device
 
+## Live Demo
+
+Try the calculator at **[calc.exergyheat.com](https://calc.exergyheat.com)**
+
 ## Quick Start
 
 ### Prerequisites
@@ -79,6 +83,7 @@ The build output will be in the `dist/` folder, ready for deployment to any stat
 | [React Router](https://reactrouter.com/) | Routing |
 | [Axios](https://axios-http.com/) | HTTP client |
 | [Lucide React](https://lucide.dev/) | Icons |
+| [React Simple Maps](https://www.react-simple-maps.io/) | Interactive US heat map |
 
 ## Project Structure
 
@@ -94,6 +99,8 @@ src/
 │   ├── InputField.tsx      # Input component with icons
 │   ├── SelectField.tsx     # Dropdown selector
 │   ├── ResultCard.tsx      # Result display cards
+│   ├── SmartTooltip.tsx    # Dynamic viewport-aware tooltips
+│   ├── StateHeatMap.tsx    # Interactive US heat map with state comparison
 │   └── ThemeToggle.tsx     # Dark mode toggle
 ├── contexts/               # React Context
 │   └── ThemeContext.tsx    # Theme provider

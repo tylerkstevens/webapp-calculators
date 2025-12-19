@@ -407,7 +407,7 @@ export default function StateHeatMap({
             <div className="flex items-center gap-2">
               <Map className="w-4 h-4 text-primary-500 flex-shrink-0" />
               <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                State Comparison
+                State Average Comparison
               </span>
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -443,7 +443,7 @@ export default function StateHeatMap({
             <div className="flex items-center gap-2">
               <Map className="w-5 h-5 text-primary-500" />
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                State Comparison
+                State Average Comparison
               </h3>
               {/* Info tooltip */}
               <div className="relative group/map">
