@@ -39,9 +39,9 @@ export default function InputField({
           {label}
         </label>
         {tooltip && (
-          <div className="group relative inline-block">
+          <div className="group/tip relative inline-flex items-center">
             <HelpCircle className="w-3.5 h-3.5 text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300 cursor-help" />
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-800 dark:bg-surface-700 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 w-64 z-50 whitespace-normal">
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-800 dark:bg-surface-700 text-white text-xs rounded-lg scale-95 opacity-0 pointer-events-none group-hover/tip:scale-100 group-hover/tip:opacity-100 group-hover/tip:pointer-events-auto transition-all duration-150 w-64 z-[100] whitespace-normal shadow-lg">
               {tooltip}
               <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-800 dark:border-t-surface-700" />
             </div>

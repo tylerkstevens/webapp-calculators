@@ -6,7 +6,7 @@ const calculators = [
   {
     path: '/hashrate',
     title: 'Hashrate Heating Calculator',
-    description: 'Calculate your COPe (Coefficient of Performance - Economic) and compare heating costs vs traditional fuels. See how much Bitcoin mining can subsidize your heating bills.',
+    description: 'Calculate your economic efficiency (COPe) with live BTC and network data. Compare hashrate heating costs vs natural gas, propane, oil, and heat pumps. See your heating subsidy %, daily BTC earnings, and explore a state-by-state US map showing where mining-powered heat makes the most sense.',
     icon: Flame,
     color: 'bg-orange-500',
   },
