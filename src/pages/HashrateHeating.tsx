@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
-import { Flame, Zap, Info, Loader2, HelpCircle, TrendingUp, Percent, DollarSign, Thermometer, RefreshCw, Pencil, Gauge } from 'lucide-react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { Flame, Zap, Info, Loader2, HelpCircle, TrendingUp, Percent, DollarSign, Thermometer, RefreshCw, Pencil, Gauge, ChevronDown } from 'lucide-react'
 
 import InputField from '../components/InputField'
 import SelectField from '../components/SelectField'
@@ -38,6 +38,505 @@ function Tooltip({ content }: { content: string }) {
   )
 }
 
+// Savings Chart component
+type ChartXAxisOption = 'electricity' | 'fuel' | 'efficiency' | 'hashprice'
+
+interface SavingsChartProps {
+  data: { x: number; y: number }[]
+  currentX: number
+  config: { min: number; max: number; unit: string; label: string }
+  xAxisOption: ChartXAxisOption
+  onXAxisChange: (option: ChartXAxisOption) => void
+  fuelLabel: string
+  isElectricFuel: boolean
+}
+
+function SavingsChart({
+  data,
+  currentX,
+  config,
+  xAxisOption,
+  onXAxisChange,
+  fuelLabel,
+  isElectricFuel,
+}: SavingsChartProps) {
+  // Chart dimensions
+  const width = 320
+  const height = 140
+  const padding = { top: 20, right: 20, bottom: 35, left: 45 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
+  // Calculate Y range
+  const yValues = data.map(d => d.y)
+  const minY = Math.min(...yValues, 0)
+  const maxY = Math.max(...yValues, 10)
+  const yRange = maxY - minY || 1
+
+  // Scale functions
+  const scaleX = (x: number) => {
+    const xRange = config.max - config.min
+    return padding.left + ((x - config.min) / xRange) * chartWidth
+  }
+
+  const scaleY = (y: number) => {
+    return padding.top + chartHeight - ((y - minY) / yRange) * chartHeight
+  }
+
+  // Generate path
+  const linePath = data.map((d, i) => {
+    const x = scaleX(d.x)
+    const y = scaleY(d.y)
+    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`
+  }).join(' ')
+
+  // Find current value on line
+  const currentXClamped = Math.max(config.min, Math.min(config.max, currentX))
+  const currentXScaled = scaleX(currentXClamped)
+
+  // Interpolate Y value at currentX
+  let currentY = 0
+  for (let i = 0; i < data.length - 1; i++) {
+    if (currentXClamped >= data[i].x && currentXClamped <= data[i + 1].x) {
+      const t = (currentXClamped - data[i].x) / (data[i + 1].x - data[i].x)
+      currentY = data[i].y + t * (data[i + 1].y - data[i].y)
+      break
+    }
+  }
+  // Handle edge cases
+  if (currentXClamped <= data[0].x) currentY = data[0].y
+  if (currentXClamped >= data[data.length - 1].x) currentY = data[data.length - 1].y
+
+  const currentYScaled = scaleY(currentY)
+
+  // Zero line position
+  const zeroY = scaleY(0)
+  const showZeroLine = minY < 0 && maxY > 0
+
+  // X-axis options (filter out fuel rate for electric fuel types)
+  const xAxisOptions: { value: ChartXAxisOption; label: string }[] = [
+    { value: 'electricity', label: 'Electricity Rate' },
+    ...(!isElectricFuel ? [{ value: 'fuel' as ChartXAxisOption, label: 'Fuel Rate' }] : []),
+    { value: 'efficiency', label: 'Miner Efficiency' },
+    { value: 'hashprice', label: 'Hashprice' },
+  ]
+
+  return (
+    <div className="mt-3 pt-3 border-t border-surface-200 dark:border-surface-700">
+      {/* X-axis selector */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs text-surface-500 dark:text-surface-400">Vary:</span>
+        <select
+          value={xAxisOption}
+          onChange={(e) => onXAxisChange(e.target.value as ChartXAxisOption)}
+          className="text-xs bg-surface-100 dark:bg-surface-700 border border-surface-200 dark:border-surface-600 rounded px-2 py-1 text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {xAxisOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* SVG Chart */}
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minHeight: '120px' }}>
+        {/* Grid lines - horizontal */}
+        {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+          const y = padding.top + t * chartHeight
+          return (
+            <line
+              key={i}
+              x1={padding.left}
+              y1={y}
+              x2={width - padding.right}
+              y2={y}
+              stroke="currentColor"
+              className="text-surface-200 dark:text-surface-700"
+              strokeWidth="1"
+            />
+          )
+        })}
+
+        {/* Zero line (if applicable) */}
+        {showZeroLine && (
+          <line
+            x1={padding.left}
+            y1={zeroY}
+            x2={width - padding.right}
+            y2={zeroY}
+            stroke="currentColor"
+            className="text-surface-400 dark:text-surface-500"
+            strokeWidth="1.5"
+            strokeDasharray="4,2"
+          />
+        )}
+
+        {/* Line path */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke="currentColor"
+          className="text-primary-500"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Data points */}
+        {data.map((d, i) => (
+          <circle
+            key={i}
+            cx={scaleX(d.x)}
+            cy={scaleY(d.y)}
+            r="3"
+            fill="currentColor"
+            className="text-primary-400 dark:text-primary-500"
+          />
+        ))}
+
+        {/* Current value marker */}
+        <circle
+          cx={currentXScaled}
+          cy={currentYScaled}
+          r="6"
+          fill="currentColor"
+          className="text-amber-500"
+          stroke="white"
+          strokeWidth="2"
+        />
+
+        {/* Current value label */}
+        <text
+          x={currentXScaled}
+          y={currentYScaled - 12}
+          textAnchor="middle"
+          className="text-[10px] fill-amber-600 dark:fill-amber-400 font-semibold"
+        >
+          {currentY >= 0 ? '+' : ''}{currentY.toFixed(0)}%
+        </text>
+
+        {/* Y-axis labels */}
+        <text
+          x={padding.left - 5}
+          y={padding.top + 4}
+          textAnchor="end"
+          className="text-[9px] fill-surface-500 dark:fill-surface-400"
+        >
+          {maxY >= 0 ? '+' : ''}{maxY.toFixed(0)}%
+        </text>
+        <text
+          x={padding.left - 5}
+          y={padding.top + chartHeight + 4}
+          textAnchor="end"
+          className="text-[9px] fill-surface-500 dark:fill-surface-400"
+        >
+          {minY >= 0 ? '+' : ''}{minY.toFixed(0)}%
+        </text>
+        {showZeroLine && (
+          <text
+            x={padding.left - 5}
+            y={zeroY + 3}
+            textAnchor="end"
+            className="text-[9px] fill-surface-500 dark:fill-surface-400 font-medium"
+          >
+            0%
+          </text>
+        )}
+
+        {/* X-axis labels */}
+        <text
+          x={padding.left}
+          y={height - 8}
+          textAnchor="start"
+          className="text-[9px] fill-surface-500 dark:fill-surface-400"
+        >
+          {config.min.toFixed(2)}
+        </text>
+        <text
+          x={width - padding.right}
+          y={height - 8}
+          textAnchor="end"
+          className="text-[9px] fill-surface-500 dark:fill-surface-400"
+        >
+          {config.max.toFixed(2)}
+        </text>
+        <text
+          x={width / 2}
+          y={height - 5}
+          textAnchor="middle"
+          className="text-[10px] fill-surface-600 dark:fill-surface-400"
+        >
+          {config.label} ({config.unit})
+        </text>
+      </svg>
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-4 mt-2 text-[10px] text-surface-500 dark:text-surface-400">
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-full bg-amber-500" />
+          <span>Current</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-6 h-0.5 bg-primary-500 rounded" />
+          <span>Savings vs {fuelLabel}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Generic Metric Chart component for COPe and Subsidy
+type MetricChartXAxisOption = 'electricity' | 'efficiency' | 'hashprice'
+
+interface MetricChartProps {
+  data: { x: number; y: number }[]
+  currentX: number
+  config: { min: number; max: number; unit: string; label: string }
+  xAxisOption: MetricChartXAxisOption
+  onXAxisChange: (option: MetricChartXAxisOption) => void
+  yAxisFormatter: (value: number) => string
+  lineLabel: string
+  showReferenceLine?: { value: number; label: string }
+  capValue?: number  // Visual cap for infinite values
+}
+
+function MetricChart({
+  data,
+  currentX,
+  config,
+  xAxisOption,
+  onXAxisChange,
+  yAxisFormatter,
+  lineLabel,
+  showReferenceLine,
+  capValue,
+}: MetricChartProps) {
+  // Chart dimensions
+  const width = 320
+  const height = 140
+  const padding = { top: 20, right: 20, bottom: 35, left: 45 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
+  // Calculate Y range
+  const yValues = data.map(d => d.y)
+  const minY = Math.min(...yValues, 0)
+  const maxY = Math.max(...yValues, 10)
+  const yRange = maxY - minY || 1
+
+  // Scale functions
+  const scaleX = (x: number) => {
+    const xRange = config.max - config.min
+    return padding.left + ((x - config.min) / xRange) * chartWidth
+  }
+
+  const scaleY = (y: number) => {
+    return padding.top + chartHeight - ((y - minY) / yRange) * chartHeight
+  }
+
+  // Generate path
+  const linePath = data.map((d, i) => {
+    const x = scaleX(d.x)
+    const y = scaleY(d.y)
+    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`
+  }).join(' ')
+
+  // Find current value on line
+  const currentXClamped = Math.max(config.min, Math.min(config.max, currentX))
+  const currentXScaled = scaleX(currentXClamped)
+
+  // Interpolate Y value at currentX
+  let currentY = 0
+  for (let i = 0; i < data.length - 1; i++) {
+    if (currentXClamped >= data[i].x && currentXClamped <= data[i + 1].x) {
+      const t = (currentXClamped - data[i].x) / (data[i + 1].x - data[i].x)
+      currentY = data[i].y + t * (data[i + 1].y - data[i].y)
+      break
+    }
+  }
+  // Handle edge cases
+  if (currentXClamped <= data[0].x) currentY = data[0].y
+  if (currentXClamped >= data[data.length - 1].x) currentY = data[data.length - 1].y
+
+  const currentYScaled = scaleY(currentY)
+
+  // Reference line position (e.g., 100% for subsidy)
+  const refLineY = showReferenceLine ? scaleY(showReferenceLine.value) : null
+  const showRefLine = showReferenceLine && showReferenceLine.value >= minY && showReferenceLine.value <= maxY
+
+  // X-axis options
+  const xAxisOptions: { value: MetricChartXAxisOption; label: string }[] = [
+    { value: 'electricity', label: 'Electricity Rate' },
+    { value: 'efficiency', label: 'Miner Efficiency' },
+    { value: 'hashprice', label: 'Hashprice' },
+  ]
+
+  // Check if current value is at/above cap (for infinity display)
+  const isAtCap = capValue && currentY >= capValue
+
+  return (
+    <div className="mt-3 pt-3 border-t border-surface-200 dark:border-surface-700">
+      {/* X-axis selector */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs text-surface-500 dark:text-surface-400">Vary:</span>
+        <select
+          value={xAxisOption}
+          onChange={(e) => onXAxisChange(e.target.value as MetricChartXAxisOption)}
+          className="text-xs bg-surface-100 dark:bg-surface-700 border border-surface-200 dark:border-surface-600 rounded px-2 py-1 text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {xAxisOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* SVG Chart */}
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minHeight: '120px' }}>
+        {/* Grid lines - horizontal */}
+        {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+          const y = padding.top + t * chartHeight
+          return (
+            <line
+              key={i}
+              x1={padding.left}
+              y1={y}
+              x2={width - padding.right}
+              y2={y}
+              stroke="currentColor"
+              className="text-surface-200 dark:text-surface-700"
+              strokeWidth="1"
+            />
+          )
+        })}
+
+        {/* Reference line (e.g., 100% for subsidy) */}
+        {showRefLine && refLineY !== null && (
+          <>
+            <line
+              x1={padding.left}
+              y1={refLineY}
+              x2={width - padding.right}
+              y2={refLineY}
+              stroke="currentColor"
+              className="text-green-500 dark:text-green-400"
+              strokeWidth="1.5"
+              strokeDasharray="4,2"
+            />
+            <text
+              x={width - padding.right + 2}
+              y={refLineY + 3}
+              className="text-[8px] fill-green-600 dark:fill-green-400"
+            >
+              {showReferenceLine.label}
+            </text>
+          </>
+        )}
+
+        {/* Line path */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke="currentColor"
+          className="text-primary-500"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Data points */}
+        {data.map((d, i) => (
+          <circle
+            key={i}
+            cx={scaleX(d.x)}
+            cy={scaleY(d.y)}
+            r="3"
+            fill="currentColor"
+            className="text-primary-400 dark:text-primary-500"
+          />
+        ))}
+
+        {/* Current value marker */}
+        <circle
+          cx={currentXScaled}
+          cy={currentYScaled}
+          r="6"
+          fill="currentColor"
+          className="text-amber-500"
+          stroke="white"
+          strokeWidth="2"
+        />
+
+        {/* Current value label */}
+        <text
+          x={currentXScaled}
+          y={currentYScaled - 12}
+          textAnchor="middle"
+          className="text-[10px] fill-amber-600 dark:fill-amber-400 font-semibold"
+        >
+          {isAtCap ? '∞' : yAxisFormatter(currentY)}
+        </text>
+
+        {/* Y-axis labels */}
+        <text
+          x={padding.left - 5}
+          y={padding.top + 4}
+          textAnchor="end"
+          className="text-[9px] fill-surface-500 dark:fill-surface-400"
+        >
+          {capValue && maxY >= capValue ? '∞' : yAxisFormatter(maxY)}
+        </text>
+        <text
+          x={padding.left - 5}
+          y={padding.top + chartHeight + 4}
+          textAnchor="end"
+          className="text-[9px] fill-surface-500 dark:fill-surface-400"
+        >
+          {yAxisFormatter(minY)}
+        </text>
+
+        {/* X-axis labels */}
+        <text
+          x={padding.left}
+          y={height - 8}
+          textAnchor="start"
+          className="text-[9px] fill-surface-500 dark:fill-surface-400"
+        >
+          {config.min.toFixed(2)}
+        </text>
+        <text
+          x={width - padding.right}
+          y={height - 8}
+          textAnchor="end"
+          className="text-[9px] fill-surface-500 dark:fill-surface-400"
+        >
+          {config.max.toFixed(2)}
+        </text>
+        <text
+          x={width / 2}
+          y={height - 5}
+          textAnchor="middle"
+          className="text-[10px] fill-surface-600 dark:fill-surface-400"
+        >
+          {config.label} ({config.unit})
+        </text>
+      </svg>
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-4 mt-2 text-[10px] text-surface-500 dark:text-surface-400">
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-full bg-amber-500" />
+          <span>Current</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-6 h-0.5 bg-primary-500 rounded" />
+          <span>{lineLabel}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Metric card component
 function MetricCard({
   label,
@@ -48,6 +547,10 @@ function MetricCard({
   tooltip,
   variant = 'default',
   icon: Icon,
+  expandable = false,
+  expanded = false,
+  onToggle,
+  children,
 }: {
   label: string
   value: string
@@ -57,6 +560,10 @@ function MetricCard({
   tooltip?: string
   variant?: 'default' | 'success' | 'warning' | 'highlight'
   icon?: React.ComponentType<{ className?: string }>
+  expandable?: boolean
+  expanded?: boolean
+  onToggle?: () => void
+  children?: React.ReactNode
 }) {
   const bgColors = {
     default: 'bg-white dark:bg-surface-800 border-surface-200 dark:border-surface-700',
@@ -73,13 +580,23 @@ function MetricCard({
   }
 
   return (
-    <div className={`rounded-xl border p-3 sm:p-5 min-h-[120px] sm:min-h-[140px] flex flex-col ${bgColors[variant]}`}>
+    <div
+      className={`rounded-xl border p-3 sm:p-5 min-h-[120px] sm:min-h-[140px] flex flex-col ${bgColors[variant]} ${expandable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      onClick={expandable ? onToggle : undefined}
+    >
       <div className="flex items-start justify-between mb-1.5 sm:mb-2">
         <div className="flex items-center gap-1.5 sm:gap-2">
           {Icon && <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-surface-500 dark:text-surface-400" />}
           <span className="text-xs sm:text-sm font-medium text-surface-600 dark:text-surface-400">{label}</span>
         </div>
-        {tooltip && <Tooltip content={tooltip} />}
+        <div className="flex items-center gap-1">
+          {tooltip && <Tooltip content={tooltip} />}
+          {expandable && (
+            <ChevronDown
+              className={`w-4 h-4 text-surface-400 dark:text-surface-500 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+            />
+          )}
+        </div>
       </div>
       <div className={`text-lg sm:text-2xl font-bold ${valueColors[variant]}`}>{value}</div>
       {secondaryValue && (
@@ -92,6 +609,8 @@ function MetricCard({
       {subValue && (
         <div className="text-[10px] sm:text-xs text-surface-500 dark:text-surface-400 mt-1.5 sm:mt-2">{subValue}</div>
       )}
+      {/* Expandable content */}
+      {expandable && expanded && children}
     </div>
   )
 }
@@ -128,6 +647,108 @@ export default function HashrateHeating() {
   const [fuelType, setFuelType] = useState<FuelType>('propane')
   const [fuelRate, setFuelRate] = useState('2.75')
   const [fuelEfficiency, setFuelEfficiency] = useState('0.90') // AFUE as decimal or COP
+
+  // Chart expansion state
+  const [savingsChartExpanded, setSavingsChartExpanded] = useState(false)
+  const [savingsChartXAxis, setSavingsChartXAxis] = useState<'electricity' | 'fuel' | 'efficiency' | 'hashprice'>('electricity')
+
+  // COPe and Subsidy chart state
+  const [copeChartExpanded, setCopeChartExpanded] = useState(false)
+  const [copeChartXAxis, setCopeChartXAxis] = useState<'electricity' | 'efficiency' | 'hashprice'>('electricity')
+
+  const [subsidyChartExpanded, setSubsidyChartExpanded] = useState(false)
+  const [subsidyChartXAxis, setSubsidyChartXAxis] = useState<'electricity' | 'efficiency' | 'hashprice'>('electricity')
+
+  // Sync chart expansion based on grid columns
+  // Grid layout: 1 col (< 640px), 2 col (640-1023px), 3 col (>= 1024px)
+  // In 2-col: Row 1 = Savings + COPe, Row 2 = Subsidy + non-expandable
+  // In 3-col: Row 1 = Savings + COPe + Subsidy (all expandable)
+  const SM_BREAKPOINT = 640
+  const LG_BREAKPOINT = 1024
+
+  // Track column count: 1, 2, or 3
+  const [columnCount, setColumnCount] = useState(() => {
+    if (typeof window === 'undefined') return 1
+    const w = window.innerWidth
+    if (w >= LG_BREAKPOINT) return 3
+    if (w >= SM_BREAKPOINT) return 2
+    return 1
+  })
+
+  // Listen for resize/orientation changes and sync chart states when crossing breakpoints
+  useEffect(() => {
+    const handleResize = () => {
+      const w = window.innerWidth
+      const newCount = w >= LG_BREAKPOINT ? 3 : w >= SM_BREAKPOINT ? 2 : 1
+      const oldCount = columnCount
+
+      // When increasing columns, sync charts that will be in the same row
+      if (newCount > oldCount) {
+        if (newCount === 3) {
+          // Going to 3 columns: sync all three
+          const anyExpanded = savingsChartExpanded || copeChartExpanded || subsidyChartExpanded
+          if (anyExpanded) {
+            setSavingsChartExpanded(true)
+            setCopeChartExpanded(true)
+            setSubsidyChartExpanded(true)
+          }
+        } else if (newCount === 2) {
+          // Going to 2 columns: sync Savings and COPe (they're in the same row)
+          const row1Expanded = savingsChartExpanded || copeChartExpanded
+          if (row1Expanded) {
+            setSavingsChartExpanded(true)
+            setCopeChartExpanded(true)
+          }
+        }
+      }
+
+      setColumnCount(newCount)
+    }
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
+    }
+  }, [columnCount, savingsChartExpanded, copeChartExpanded, subsidyChartExpanded])
+
+  const handleChartToggle = useCallback((chart: 'savings' | 'cope' | 'subsidy') => {
+    if (columnCount === 3) {
+      // 3 columns: all three in same row, sync all
+      const anyExpanded = savingsChartExpanded || copeChartExpanded || subsidyChartExpanded
+      const newState = !anyExpanded
+      setSavingsChartExpanded(newState)
+      setCopeChartExpanded(newState)
+      setSubsidyChartExpanded(newState)
+    } else if (columnCount === 2) {
+      // 2 columns: Savings + COPe in row 1, Subsidy alone in row 2
+      if (chart === 'savings' || chart === 'cope') {
+        // Toggle both Savings and COPe together
+        const row1Expanded = savingsChartExpanded || copeChartExpanded
+        const newState = !row1Expanded
+        setSavingsChartExpanded(newState)
+        setCopeChartExpanded(newState)
+      } else {
+        // Subsidy is alone in its row, toggle individually
+        setSubsidyChartExpanded(!subsidyChartExpanded)
+      }
+    } else {
+      // 1 column: toggle individually
+      switch (chart) {
+        case 'savings':
+          setSavingsChartExpanded(!savingsChartExpanded)
+          break
+        case 'cope':
+          setCopeChartExpanded(!copeChartExpanded)
+          break
+        case 'subsidy':
+          setSubsidyChartExpanded(!subsidyChartExpanded)
+          break
+      }
+    }
+  }, [columnCount, savingsChartExpanded, copeChartExpanded, subsidyChartExpanded])
 
   // ============================================================================
   // Effects
@@ -422,6 +1043,183 @@ export default function HashrateHeating() {
   }, [copeResult, fuelType])
 
   const minerEfficiency = getMinerEfficiency(miner)
+
+  // ============================================================================
+  // Chart Data Generation
+  // ============================================================================
+
+  // X-axis configuration for the savings chart
+  const chartXAxisConfig = useMemo(() => {
+    const fuelUnit = FUEL_SPECS[fuelType].unit
+    return {
+      electricity: { min: 0.05, max: 0.30, step: 0.025, unit: '$/kWh', label: 'Electricity Rate' },
+      fuel: { min: Math.max(0.5, fuelRateNum * 0.5), max: fuelRateNum * 2, step: (fuelRateNum * 1.5) / 10, unit: `$/${fuelUnit}`, label: `${FUEL_SPECS[fuelType].label} Rate` },
+      efficiency: { min: 10, max: 50, step: 4, unit: 'J/TH', label: 'Miner Efficiency' },
+      hashprice: { min: 0.02, max: 0.12, step: 0.01, unit: '$/TH/d', label: 'Hashprice' },
+    }
+  }, [fuelType, fuelRateNum])
+
+  // Calculate savings at a specific X value
+  const calculateSavingsAtX = useCallback((xValue: number, xAxis: 'electricity' | 'fuel' | 'efficiency' | 'hashprice'): number => {
+    if (!btcMetrics) return 0
+
+    let testElecRate = electricityRateNum
+    let testFuelRate = isElectricFuel ? electricityRateNum : fuelRateNum
+    let testMiner = miner
+    let testBtcMetrics = btcMetrics
+
+    switch (xAxis) {
+      case 'electricity':
+        testElecRate = xValue
+        if (isElectricFuel) testFuelRate = xValue
+        break
+      case 'fuel':
+        testFuelRate = xValue
+        break
+      case 'efficiency':
+        // Adjust miner power to achieve target efficiency (J/TH = W / TH/s)
+        testMiner = { ...miner, powerW: xValue * miner.hashrateTH }
+        break
+      case 'hashprice':
+        // Back-calculate BTC price from hashprice
+        // hashprice = hashvalue * btcPrice / 1e8
+        // btcPrice = hashprice * 1e8 / hashvalue
+        const hashvalue = (144 * 3.125 * 1e8) / btcMetrics.networkHashrate
+        testBtcMetrics = { ...btcMetrics, btcPrice: (xValue * 1e8) / hashvalue }
+        break
+    }
+
+    const result = calculateArbitrage(fuelType, testFuelRate, testElecRate, testMiner, testBtcMetrics, 1500, fuelEfficiencyNum)
+    return result.savingsPercent
+  }, [btcMetrics, electricityRateNum, fuelRateNum, miner, fuelType, fuelEfficiencyNum, isElectricFuel])
+
+  // Generate chart data points
+  const savingsChartData = useMemo(() => {
+    if (!btcMetrics || !savingsChartExpanded) return null
+
+    const config = chartXAxisConfig[savingsChartXAxis]
+    const points: { x: number; y: number }[] = []
+
+    for (let x = config.min; x <= config.max + 0.0001; x += config.step) {
+      const savings = calculateSavingsAtX(x, savingsChartXAxis)
+      points.push({ x, y: savings })
+    }
+
+    // Get current X value based on axis type
+    let currentX: number
+    switch (savingsChartXAxis) {
+      case 'electricity':
+        currentX = electricityRateNum
+        break
+      case 'fuel':
+        currentX = fuelRateNum
+        break
+      case 'efficiency':
+        currentX = minerEfficiency
+        break
+      case 'hashprice':
+        currentX = networkMetrics?.hashprice || 0
+        break
+    }
+
+    return { points, currentX, config }
+  }, [btcMetrics, savingsChartExpanded, savingsChartXAxis, chartXAxisConfig, calculateSavingsAtX, electricityRateNum, fuelRateNum, minerEfficiency, networkMetrics])
+
+  // X-axis configuration for COPe/Subsidy charts (no fuel rate option)
+  const copeChartXAxisConfig = useMemo(() => {
+    return {
+      electricity: { min: 0.05, max: 0.30, step: 0.025, unit: '$/kWh', label: 'Electricity Rate' },
+      efficiency: { min: 10, max: 50, step: 4, unit: 'J/TH', label: 'Miner Efficiency' },
+      hashprice: { min: 0.02, max: 0.12, step: 0.01, unit: '$/TH/d', label: 'Hashprice' },
+    }
+  }, [])
+
+  // Calculate COPe and Subsidy at a specific X value
+  const calculateCOPeAtX = useCallback((xValue: number, xAxis: 'electricity' | 'efficiency' | 'hashprice'): { cope: number; subsidy: number } => {
+    if (!btcMetrics) return { cope: 1, subsidy: 0 }
+
+    let testElecRate = electricityRateNum
+    let testMiner = miner
+    let testBtcMetrics = btcMetrics
+
+    switch (xAxis) {
+      case 'electricity':
+        testElecRate = xValue
+        break
+      case 'efficiency':
+        // Adjust miner power to achieve target efficiency (J/TH = W / TH/s)
+        testMiner = { ...miner, powerW: xValue * miner.hashrateTH }
+        break
+      case 'hashprice':
+        // Back-calculate BTC price from hashprice
+        const hashvalue = (144 * 3.125 * 1e8) / btcMetrics.networkHashrate
+        testBtcMetrics = { ...btcMetrics, btcPrice: (xValue * 1e8) / hashvalue }
+        break
+    }
+
+    const result = calculateCOPe(testElecRate, testMiner, testBtcMetrics)
+    return { cope: result.COPe, subsidy: result.R * 100 }
+  }, [btcMetrics, electricityRateNum, miner])
+
+  // Generate COPe chart data
+  const copeChartData = useMemo(() => {
+    if (!btcMetrics || !copeChartExpanded) return null
+
+    const config = copeChartXAxisConfig[copeChartXAxis]
+    const points: { x: number; y: number }[] = []
+
+    for (let x = config.min; x <= config.max + 0.0001; x += config.step) {
+      const { cope } = calculateCOPeAtX(x, copeChartXAxis)
+      // Cap COPe at 20 for display (values above this approach infinity)
+      const displayCope = Math.min(cope, 20)
+      points.push({ x, y: displayCope })
+    }
+
+    // Get current X value based on axis type
+    let currentX: number
+    switch (copeChartXAxis) {
+      case 'electricity':
+        currentX = electricityRateNum
+        break
+      case 'efficiency':
+        currentX = minerEfficiency
+        break
+      case 'hashprice':
+        currentX = networkMetrics?.hashprice || 0
+        break
+    }
+
+    return { points, currentX, config }
+  }, [btcMetrics, copeChartExpanded, copeChartXAxis, copeChartXAxisConfig, calculateCOPeAtX, electricityRateNum, minerEfficiency, networkMetrics])
+
+  // Generate Subsidy chart data
+  const subsidyChartData = useMemo(() => {
+    if (!btcMetrics || !subsidyChartExpanded) return null
+
+    const config = copeChartXAxisConfig[subsidyChartXAxis]
+    const points: { x: number; y: number }[] = []
+
+    for (let x = config.min; x <= config.max + 0.0001; x += config.step) {
+      const { subsidy } = calculateCOPeAtX(x, subsidyChartXAxis)
+      points.push({ x, y: subsidy })
+    }
+
+    // Get current X value based on axis type
+    let currentX: number
+    switch (subsidyChartXAxis) {
+      case 'electricity':
+        currentX = electricityRateNum
+        break
+      case 'efficiency':
+        currentX = minerEfficiency
+        break
+      case 'hashprice':
+        currentX = networkMetrics?.hashprice || 0
+        break
+    }
+
+    return { points, currentX, config }
+  }, [btcMetrics, subsidyChartExpanded, subsidyChartXAxis, copeChartXAxisConfig, calculateCOPeAtX, electricityRateNum, minerEfficiency, networkMetrics])
 
   // ============================================================================
   // Render
@@ -798,17 +1596,32 @@ export default function HashrateHeating() {
 
       {/* Results Grid */}
       {copeResult && (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {/* Savings vs Fuel */}
           {arbitrageResult && (
             <MetricCard
               icon={Flame}
               label={`Savings vs ${FUEL_SPECS[fuelType].label}`}
               value={`${arbitrageResult.savingsPercent >= 0 ? '+' : ''}${arbitrageResult.savingsPercent.toFixed(0)}%`}
-              subValue={`${FUEL_SPECS[fuelType].label}: $${arbitrageResult.traditionalCostPerKwh.toFixed(3)}/kWh`}
+              subValue={savingsChartExpanded ? undefined : `${FUEL_SPECS[fuelType].label}: $${arbitrageResult.traditionalCostPerKwh.toFixed(3)}/kWh • Click to explore`}
               tooltip="Percentage savings vs your selected fuel. Formula: ((Traditional $/kWh - Hashrate $/kWh) / Traditional $/kWh) × 100. Traditional fuel cost accounts for efficiency (AFUE for gas/oil, COP for heat pumps). Positive = you save money with hashrate heating. Negative = traditional fuel is cheaper at current BTC economics."
               variant={arbitrageResult.savingsPercent > 50 ? 'success' : arbitrageResult.savingsPercent > 0 ? 'highlight' : 'warning'}
-            />
+              expandable
+              expanded={savingsChartExpanded}
+              onToggle={() => handleChartToggle('savings')}
+            >
+              {savingsChartData && (
+                <SavingsChart
+                  data={savingsChartData.points}
+                  currentX={savingsChartData.currentX}
+                  config={savingsChartData.config}
+                  xAxisOption={savingsChartXAxis}
+                  onXAxisChange={setSavingsChartXAxis}
+                  fuelLabel={FUEL_SPECS[fuelType].label}
+                  isElectricFuel={isElectricFuel}
+                />
+              )}
+            </MetricCard>
           )}
 
           {/* COPe */}
@@ -816,20 +1629,52 @@ export default function HashrateHeating() {
             icon={TrendingUp}
             label="COPe (Economic COP)"
             value={formatCOPe(copeResult.COPe)}
-            subValue="Compare to heat pump COP of 2.5-4.0"
+            subValue={copeChartExpanded ? undefined : "Compare to heat pump COP 2.5-4.0 • Click to explore"}
             tooltip="COPe (Coefficient of Performance - Economic) measures heating efficiency through economics rather than thermodynamics. Formula: COPe = 1/(1-R), where R = mining revenue / electricity cost. A COPe of 3.0 means you get the same economic benefit as a heat pump with COP 3.0 — both give you 3 units of 'value' per unit of electricity. Heat pump COP varies with outdoor temp; COPe varies with BTC price and network hashrate. Higher is better. Infinity = free heating."
             variant={copeResult.COPe >= 3 ? 'success' : copeResult.COPe >= 2 ? 'highlight' : 'default'}
-          />
+            expandable
+            expanded={copeChartExpanded}
+            onToggle={() => handleChartToggle('cope')}
+          >
+            {copeChartData && (
+              <MetricChart
+                data={copeChartData.points}
+                currentX={copeChartData.currentX}
+                config={copeChartData.config}
+                xAxisOption={copeChartXAxis}
+                onXAxisChange={setCopeChartXAxis}
+                yAxisFormatter={(v) => v >= 20 ? '∞' : v.toFixed(1)}
+                lineLabel="COPe"
+                capValue={20}
+              />
+            )}
+          </MetricCard>
 
           {/* Heating Subsidy */}
           <MetricCard
             icon={Percent}
             label="Heating Subsidy"
             value={`${Math.round(copeResult.R * 100)}%`}
-            subValue="Of electric heating cost paid by mining"
+            subValue={subsidyChartExpanded ? undefined : "Mining covers this % of electricity • Click to explore"}
             tooltip="The percentage of your electricity cost offset by mining revenue. Formula: R = (Daily Mining Revenue / Daily Electricity Cost) × 100. At 50%, mining pays half your electric bill. At 100%, heating is free. Above 100%, you're profiting while heating. This is the 'R' value used in the COPe formula."
             variant={copeResult.R >= 1 ? 'success' : copeResult.R >= 0.5 ? 'highlight' : 'default'}
-          />
+            expandable
+            expanded={subsidyChartExpanded}
+            onToggle={() => handleChartToggle('subsidy')}
+          >
+            {subsidyChartData && (
+              <MetricChart
+                data={subsidyChartData.points}
+                currentX={subsidyChartData.currentX}
+                config={subsidyChartData.config}
+                xAxisOption={subsidyChartXAxis}
+                onXAxisChange={setSubsidyChartXAxis}
+                yAxisFormatter={(v) => `${v.toFixed(0)}%`}
+                lineLabel="Subsidy"
+                showReferenceLine={{ value: 100, label: '100%' }}
+              />
+            )}
+          </MetricCard>
 
           {/* Effective Heat Cost */}
           <MetricCard
