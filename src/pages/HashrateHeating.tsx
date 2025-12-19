@@ -3,6 +3,7 @@ import { Flame, Zap, Info, Loader2, HelpCircle, TrendingUp, Percent, DollarSign,
 
 import InputField from '../components/InputField'
 import SelectField from '../components/SelectField'
+import StateHeatMap from '../components/StateHeatMap'
 
 import {
   calculateCOPe,
@@ -1622,6 +1623,14 @@ export default function HashrateHeating() {
                 Avg. electricity: ${getStatePrices(selectedState).electricity.toFixed(2)}/kWh
               </div>
             )}
+
+            {/* State Heat Map */}
+            <StateHeatMap
+              btcMetrics={btcMetrics}
+              selectedFuelType={fuelType}
+              onFuelTypeChange={(fuel) => setFuelType(fuel)}
+              onStateClick={(abbr) => setSelectedState(abbr)}
+            />
           </div>
         </div>
       </div>
