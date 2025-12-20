@@ -166,6 +166,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Community**: [support.exergyheat.com](https://support.exergyheat.com)
 - **Issues**: [GitHub Issues](https://github.com/exergyheat/webapp-calculators/issues)
 
----
-
-Built with heat by [Exergy Heat](https://exergyheat.com)
