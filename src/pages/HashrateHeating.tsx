@@ -24,7 +24,6 @@ import {
 import { getBraiinsData, BraiinsMetrics } from '../api/bitcoin'
 import {
   Country,
-  COUNTRIES,
   getRegionsList,
   getRegionPrices,
   getDefaultFuelRate,
@@ -652,6 +651,10 @@ export default function HashrateHeating() {
   const [fuelRate, setFuelRate] = useState('2.75')
   const [fuelEfficiency, setFuelEfficiency] = useState('0.90') // AFUE as decimal or COP
 
+  // Fuel bill calculator
+  const [fuelBillAmount, setFuelBillAmount] = useState('')
+  const [fuelBillUsage, setFuelBillUsage] = useState('')
+
   // Chart expansion state
   const [savingsChartExpanded, setSavingsChartExpanded] = useState(false)
   const [savingsChartXAxis, setSavingsChartXAxis] = useState<'electricity' | 'fuel' | 'efficiency' | 'hashprice'>('electricity')
@@ -778,11 +781,11 @@ export default function HashrateHeating() {
   // Update fuel rate when region or fuel type changes
   useEffect(() => {
     const prices = getRegionPrices(selectedCountry, selectedRegion)
-    const defaultRate = getDefaultFuelRate(fuelType, prices)
+    const defaultRate = getDefaultFuelRate(fuelType, prices, selectedCountry)
     setFuelRate(defaultRate.toFixed(2))
   }, [selectedCountry, selectedRegion, fuelType])
 
-  // Update fuel efficiency default when fuel type changes
+  // Update fuel efficiency default and reset bill calculator when fuel type changes
   useEffect(() => {
     const defaultEfficiency = FUEL_SPECS[fuelType].typicalEfficiency
     // For AFUE fuels (< 1), show as percentage; for COP (heat pump), show as decimal
@@ -791,6 +794,9 @@ export default function HashrateHeating() {
     } else {
       setFuelEfficiency((defaultEfficiency * 100).toFixed(0))
     }
+    // Reset bill calculator when fuel type changes
+    setFuelBillAmount('')
+    setFuelBillUsage('')
   }, [fuelType])
 
   // Update electricity rate when region changes
@@ -810,6 +816,16 @@ export default function HashrateHeating() {
       setElectricityRate(calculatedRate.toFixed(3))
     }
   }, [billAmount, billKwh])
+
+  // Calculate fuel rate from bill when both values entered
+  useEffect(() => {
+    const bill = parseFloat(fuelBillAmount)
+    const usage = parseFloat(fuelBillUsage)
+    if (bill > 0 && usage > 0) {
+      const calculatedRate = bill / usage
+      setFuelRate(calculatedRate.toFixed(2))
+    }
+  }, [fuelBillAmount, fuelBillUsage])
 
   // ============================================================================
   // Derived Values
@@ -1443,54 +1459,48 @@ export default function HashrateHeating() {
       {/* Input Strip */}
       <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4 sm:p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          {/* Miner Selection */}
+          {/* Location Selection */}
           <div>
             <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
-              <Zap className="w-4 h-4 text-primary-500" />
-              Miner
+              <Thermometer className="w-4 h-4 text-blue-500" />
+              Your Location
             </h3>
-            <SelectField
-              label="Select Miner"
-              value={minerType}
-              onChange={handleMinerTypeChange}
-              options={[
-                { value: 'custom', label: 'Custom Miner' },
-                ...MINER_PRESETS.map((preset, index) => ({
-                  value: index.toString(),
-                  label: preset.name,
-                })),
-              ]}
-            />
-            <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
-              <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">
-                {minerType === 'custom' ? 'Enter specs:' : 'Adjust specs:'}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <InputField
-                  label="Power"
-                  value={minerPower}
-                  onChange={handlePowerChange}
-                  suffix="W"
-                  type="number"
-                  min={100}
-                  max={15000}
-                  placeholder={DEFAULT_CUSTOM_MINER.powerW.toString()}
-                />
-                <InputField
-                  label="Hashrate"
-                  value={minerHashrate}
-                  onChange={handleHashrateChange}
-                  suffix="TH/s"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  placeholder={DEFAULT_CUSTOM_MINER.hashrateTH.toString()}
-                />
-              </div>
-              <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
-                Efficiency: {minerEfficiency.toFixed(1)} J/TH
-              </div>
+            <div className="space-y-3">
+              <SelectField
+                label="Country"
+                value={selectedCountry}
+                onChange={(value) => {
+                  const newCountry = value as Country
+                  setSelectedCountry(newCountry)
+                  setSelectedRegion('') // Reset region when country changes
+                  // Reset fuel type if wood_pellets selected and switching to US
+                  if (newCountry === 'US' && fuelType === 'wood_pellets') {
+                    setFuelType('natural_gas')
+                  }
+                }}
+                options={[
+                  { value: 'US', label: 'United States' },
+                  { value: 'CA', label: 'Canada' },
+                ]}
+              />
+              <SelectField
+                label={selectedCountry === 'US' ? 'State' : 'Province'}
+                value={selectedRegion}
+                onChange={setSelectedRegion}
+                options={[
+                  { value: '', label: `National Average` },
+                  ...getRegionsList(selectedCountry).map((region) => ({
+                    value: region.code,
+                    label: region.name,
+                  })),
+                ]}
+              />
             </div>
+            {selectedRegion && (
+              <div className="mt-2 text-xs text-surface-500 dark:text-surface-400">
+                Avg. electricity: {getCurrencySymbol(selectedCountry)}{getRegionPrices(selectedCountry, selectedRegion).electricity.toFixed(2)}/kWh
+              </div>
+            )}
           </div>
 
           {/* Electricity Rate */}
@@ -1547,34 +1557,66 @@ export default function HashrateHeating() {
               label="Fuel Type"
               value={fuelType}
               onChange={(value) => setFuelType(value as FuelType)}
-              options={Object.entries(FUEL_SPECS).map(([key, spec]) => ({
-                value: key,
-                label: spec.label,
-              }))}
+              options={Object.entries(FUEL_SPECS)
+                .filter(([key]) => selectedCountry !== 'US' || key !== 'wood_pellets')
+                .map(([key, spec]) => ({
+                  value: key,
+                  label: spec.label,
+                }))}
             />
             {/* Show rate input only for non-electric fuel types */}
             {!isElectricFuel && (
-              <div className="mt-3">
-                <InputField
-                  label="Rate"
-                  value={fuelRate}
-                  onChange={setFuelRate}
-                  prefix={currencySymbol}
-                  suffix={`/${getFuelSpecs(fuelType, selectedCountry).unit}`}
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  tooltip={
-                    fuelType === 'natural_gas'
-                      ? selectedCountry === 'CA'
-                        ? "Find your rate on your gas bill under 'Price per GJ'. Include delivery charges for total cost."
-                        : "Find your rate on your gas bill under 'Price per therm' or 'Cost per CCF' (1 CCF ≈ 1.037 therms). Include delivery charges for total cost."
-                      : fuelType === 'propane'
-                      ? "Check your propane delivery receipt or contact your supplier. Prices vary seasonally — use your average annual rate for best accuracy."
-                      : "Find your rate on your heating oil delivery receipt. Prices vary seasonally — use your average annual rate for best accuracy."
-                  }
-                />
-              </div>
+              <>
+                <div className="mt-3">
+                  <InputField
+                    label="Rate"
+                    value={fuelRate}
+                    onChange={setFuelRate}
+                    prefix={currencySymbol}
+                    suffix={`/${getFuelSpecs(fuelType, selectedCountry).unit}`}
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    tooltip={
+                      fuelType === 'natural_gas'
+                        ? selectedCountry === 'CA'
+                          ? "Find your rate on your gas bill under 'Price per GJ'. Include delivery charges for total cost."
+                          : "Find your rate on your gas bill under 'Price per therm' or 'Cost per CCF' (1 CCF ≈ 1.037 therms). Include delivery charges for total cost."
+                        : fuelType === 'propane'
+                        ? "Check your propane delivery receipt or contact your supplier. Prices vary seasonally — use your average annual rate for best accuracy."
+                        : fuelType === 'wood_pellets'
+                        ? "Enter your cost per 40 lb bag. You can use the calculator below to figure this out from your purchase."
+                        : "Find your rate on your heating oil delivery receipt. Prices vary seasonally — use your average annual rate for best accuracy."
+                    }
+                  />
+                </div>
+                <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
+                  <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">
+                    {fuelType === 'wood_pellets' ? 'Calculate from purchase:' : 'Calculate from bill:'}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField
+                      label="Cost"
+                      value={fuelBillAmount}
+                      onChange={setFuelBillAmount}
+                      prefix={currencySymbol}
+                      type="number"
+                      min={0}
+                    />
+                    <InputField
+                      label={getFuelSpecs(fuelType, selectedCountry).unit}
+                      value={fuelBillUsage}
+                      onChange={setFuelBillUsage}
+                      suffix={fuelType === 'wood_pellets' ? '40 lb bag' : getFuelSpecs(fuelType, selectedCountry).unit}
+                      type="number"
+                      min={0}
+                    />
+                  </div>
+                  <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
+                    Auto-calculates rate above
+                  </div>
+                </div>
+              </>
             )}
             {/* Show efficiency input for fuels that have it (not electric resistance) */}
             {hasEfficiencyInput && (
@@ -1609,43 +1651,54 @@ export default function HashrateHeating() {
             )}
           </div>
 
-          {/* Location Selection */}
+          {/* Miner Selection */}
           <div>
             <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
-              <Thermometer className="w-4 h-4 text-blue-500" />
-              Your Location
+              <Zap className="w-4 h-4 text-primary-500" />
+              Miner
             </h3>
-            <div className="space-y-3">
-              <SelectField
-                label="Country"
-                value={selectedCountry}
-                onChange={(value) => {
-                  setSelectedCountry(value as Country)
-                  setSelectedRegion('') // Reset region when country changes
-                }}
-                options={[
-                  { value: 'US', label: 'United States' },
-                  { value: 'CA', label: 'Canada' },
-                ]}
-              />
-              <SelectField
-                label={selectedCountry === 'US' ? 'State' : 'Province'}
-                value={selectedRegion}
-                onChange={setSelectedRegion}
-                options={[
-                  { value: '', label: `${COUNTRIES[selectedCountry].name} National Average` },
-                  ...getRegionsList(selectedCountry).map((region) => ({
-                    value: region.code,
-                    label: region.name,
-                  })),
-                ]}
-              />
-            </div>
-            {selectedRegion && (
-              <div className="mt-2 text-xs text-surface-500 dark:text-surface-400">
-                Avg. electricity: {getCurrencySymbol(selectedCountry)}{getRegionPrices(selectedCountry, selectedRegion).electricity.toFixed(2)}/kWh
+            <SelectField
+              label="Select Miner"
+              value={minerType}
+              onChange={handleMinerTypeChange}
+              options={[
+                { value: 'custom', label: 'Custom Miner' },
+                ...MINER_PRESETS.map((preset, index) => ({
+                  value: index.toString(),
+                  label: preset.name,
+                })),
+              ]}
+            />
+            <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
+              <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">
+                {minerType === 'custom' ? 'Enter specs:' : 'Adjust specs:'}
               </div>
-            )}
+              <div className="grid grid-cols-2 gap-2">
+                <InputField
+                  label="Power"
+                  value={minerPower}
+                  onChange={handlePowerChange}
+                  suffix="W"
+                  type="number"
+                  min={100}
+                  max={15000}
+                  placeholder={DEFAULT_CUSTOM_MINER.powerW.toString()}
+                />
+                <InputField
+                  label="Hashrate"
+                  value={minerHashrate}
+                  onChange={handleHashrateChange}
+                  suffix="TH/s"
+                  type="number"
+                  min={1}
+                  max={1000}
+                  placeholder={DEFAULT_CUSTOM_MINER.hashrateTH.toString()}
+                />
+              </div>
+              <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
+                Efficiency: {minerEfficiency.toFixed(1)} J/TH
+              </div>
+            </div>
           </div>
         </div>
       </div>

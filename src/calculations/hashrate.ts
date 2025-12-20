@@ -103,8 +103,8 @@ export const FUEL_SPECS = {
   },
   wood_pellets: {
     label: 'Wood Pellets',
-    unit: 'ton',
-    btuPerUnit: 16500000,    // ~16.5 million BTU per ton
+    unit: 'bag',
+    btuPerUnit: 330000,      // 16.5M BTU/ton ÷ 50 bags/ton = 330,000 BTU per 40 lb bag
     typicalEfficiency: 0.80, // 80% efficiency for pellet stove
   },
 } as const
@@ -161,8 +161,8 @@ export const FUEL_SPECS_BY_COUNTRY: Record<Country, FuelSpecsMap> = {
     },
     wood_pellets: {
       label: 'Wood Pellets',
-      unit: 'tonne',             // metric tonne (close enough to US ton)
-      btuPerUnit: 16500000,
+      unit: 'bag',               // 40 lb bag (same unit for US and CA)
+      btuPerUnit: 299460,        // 16.5M BTU/tonne ÷ 55.12 bags/tonne
       typicalEfficiency: 0.80,
     },
   },

@@ -229,7 +229,7 @@ export default function StateHeatMap({
     Object.entries(countryData.regions).forEach(([abbr, regionInfo]) => {
       const prices = regionInfo.prices
       const electricityRate = prices.electricity
-      const fuelRate = getDefaultFuelRate(selectedFuelType, prices)
+      const fuelRate = getDefaultFuelRate(selectedFuelType, prices, country)
 
       const copeResult = calculateCOPe(electricityRate, miner, btcMetrics)
       const arbitrage = calculateArbitrage(
