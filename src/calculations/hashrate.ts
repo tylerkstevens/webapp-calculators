@@ -57,9 +57,13 @@ export interface ArbitrageResult {
 
 export const MINER_PRESETS: MinerSpec[] = [
   { name: 'Heatbit Trio', powerW: 400, hashrateTH: 10 },
+  { name: 'Heatbit Maxi', powerW: 1500, hashrateTH: 39 },
   { name: 'Avalon Mini 3', powerW: 850, hashrateTH: 40 },
   { name: 'Avalon Q', powerW: 1700, hashrateTH: 90 },
-  { name: 'Heat Core HS05', powerW: 5000, hashrateTH: 228 },
+  { name: 'Whastminer M64', powerW: 5000, hashrateTH: 228 },
+  { name: 'Bitmain S19j Pro', powerW: 3068, hashrateTH: 104 },
+  { name: 'Bitmain S19k Pro', powerW: 2760, hashrateTH: 120 },
+  { name: 'Bitmain S9', powerW: 1400, hashrateTH: 13.5 },
 ]
 
 // Default custom miner specs for the calculator

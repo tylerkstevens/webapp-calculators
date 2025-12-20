@@ -97,6 +97,13 @@ interface StateHeatMapProps {
   onRegionClick?: (regionCode: string) => void
   minerPowerW: number
   minerHashrateTH: number
+  // Props for "YOU" row and selection highlighting
+  selectedRegion: string
+  userElectricityRate: number
+  userFuelRate: number
+  userFuelEfficiency: number
+  defaultElectricityRate: number
+  defaultFuelRate: number
 }
 
 interface StateMetrics {
@@ -198,6 +205,12 @@ export default function StateHeatMap({
   onRegionClick,
   minerPowerW,
   minerHashrateTH,
+  selectedRegion,
+  userElectricityRate,
+  userFuelRate,
+  userFuelEfficiency,
+  defaultElectricityRate,
+  defaultFuelRate,
 }: StateHeatMapProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [selectedMetric, setSelectedMetric] = useState<MapMetric>('savings')
@@ -256,9 +269,56 @@ export default function StateHeatMap({
     return result
   }, [btcMetrics, selectedFuelType, minerPowerW, minerHashrateTH, countryData])
 
+  // Detect if user has custom inputs (different from regional defaults or typical efficiency)
+  const defaultEfficiency = FUEL_SPECS[selectedFuelType].typicalEfficiency
+  const hasCustomInputs = useMemo(() => {
+    const elecDiff = Math.abs(userElectricityRate - defaultElectricityRate)
+    const fuelDiff = Math.abs(userFuelRate - defaultFuelRate)
+    const effDiff = Math.abs(userFuelEfficiency - defaultEfficiency)
+    return elecDiff > 0.001 || fuelDiff > 0.001 || effDiff > 0.001
+  }, [userElectricityRate, defaultElectricityRate, userFuelRate, defaultFuelRate, userFuelEfficiency, defaultEfficiency])
+
+  // Calculate "YOU" metrics using user's custom inputs
+  const youMetrics = useMemo((): StateMetrics | null => {
+    if (!btcMetrics || !hasCustomInputs) return null
+
+    const miner = {
+      name: 'User Miner',
+      powerW: minerPowerW,
+      hashrateTH: minerHashrateTH,
+    }
+
+    const copeResult = calculateCOPe(userElectricityRate, miner, btcMetrics)
+    const arbitrage = calculateArbitrage(
+      selectedFuelType,
+      userFuelRate,
+      userElectricityRate,
+      miner,
+      btcMetrics,
+      1500,
+      userFuelEfficiency
+    )
+
+    return {
+      abbr: 'YOU',
+      name: 'Your Custom Rates',
+      electricityRate: userElectricityRate,
+      fuelRate: userFuelRate,
+      savings: arbitrage.savingsPercent,
+      cope: copeResult.COPe,
+      subsidy: copeResult.R * 100,
+    }
+  }, [btcMetrics, hasCustomInputs, userElectricityRate, userFuelRate, userFuelEfficiency, minerPowerW, minerHashrateTH, selectedFuelType])
+
   // Sort states by selected metric for mobile table
   const sortedStates = useMemo((): StateMetrics[] => {
     const states = Array.from(stateMetricsMap.values())
+
+    // Add "YOU" entry if user has custom rates
+    if (youMetrics) {
+      states.push(youMetrics)
+    }
+
     return states.sort((a: StateMetrics, b: StateMetrics) => {
       const aVal = a[selectedMetric]
       const bVal = b[selectedMetric]
@@ -266,7 +326,7 @@ export default function StateHeatMap({
       const bNum = isFinite(bVal) ? bVal : 9999
       return bNum - aNum
     })
-  }, [stateMetricsMap, selectedMetric])
+  }, [stateMetricsMap, selectedMetric, youMetrics])
 
   const handleMouseMove = (event: React.MouseEvent) => {
     setTooltipPosition({ x: event.clientX, y: event.clientY })
@@ -301,13 +361,15 @@ export default function StateHeatMap({
               const metricValue = regionData ? getMetricValue(regionData) : 0
               const color = getColorForMetric(metricValue, selectedMetric)
 
+              const isSelected = regionAbbr === selectedRegion
+
               return (
                 <Geography
                   key={geo.rsmKey}
                   geography={geo}
                   fill={color}
-                  stroke="#fff"
-                  strokeWidth={0.3}
+                  stroke={isSelected ? '#2563eb' : '#fff'}
+                  strokeWidth={isSelected ? 3 : 0.3}
                   style={{
                     default: { outline: 'none' },
                     hover: { outline: 'none' },
@@ -340,16 +402,37 @@ export default function StateHeatMap({
           <tbody>
             {sortedStates.map((state) => {
               const metricValue = getMetricValue(state)
+              const isYou = state.abbr === 'YOU'
+              const isSelected = state.abbr === selectedRegion
+
               return (
                 <tr
                   key={state.abbr}
-                  onClick={() => onRegionClick?.(state.abbr)}
-                  className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                  onClick={() => !isYou && onRegionClick?.(state.abbr)}
+                  className={`
+                    border-t border-gray-100 dark:border-gray-700
+                    ${isYou
+                      ? 'bg-primary-50 dark:bg-primary-900/30 cursor-default'
+                      : isSelected
+                        ? 'bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer'
+                    }
+                  `}
                 >
-                  <td className="py-2 px-3 font-medium text-gray-900 dark:text-gray-100">
-                    {state.abbr}
+                  <td className={`py-2 px-3 font-medium ${
+                    isYou
+                      ? 'text-primary-600 dark:text-primary-400'
+                      : isSelected
+                        ? 'text-blue-700 dark:text-blue-300'
+                        : 'text-gray-900 dark:text-gray-100'
+                  }`}>
+                    {isYou ? '★ YOU' : state.abbr}
                   </td>
-                  <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
+                  <td className={`py-2 px-3 ${
+                    isYou || isSelected
+                      ? 'text-gray-700 dark:text-gray-300'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}>
                     {currencySymbol}{state.electricityRate.toFixed(2)}
                   </td>
                   <td className="py-2 px-3 text-right">
@@ -392,13 +475,15 @@ export default function StateHeatMap({
               const metricValue = regionData ? getMetricValue(regionData) : 0
               const color = getColorForMetric(metricValue, selectedMetric)
 
+              const isSelected = regionAbbr === selectedRegion
+
               return (
                 <Geography
                   key={geo.rsmKey}
                   geography={geo}
                   fill={color}
-                  stroke="#fff"
-                  strokeWidth={0.5}
+                  stroke={isSelected ? '#2563eb' : '#fff'}
+                  strokeWidth={isSelected ? 4 : 0.5}
                   style={{
                     default: { outline: 'none' },
                     hover: { outline: 'none', fill: '#3b82f6', cursor: 'pointer' },
@@ -567,11 +652,13 @@ export default function StateHeatMap({
                     onChange={(e) => onFuelTypeChange(e.target.value as FuelType)}
                     className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2.5 py-1.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   >
-                    {Object.entries(FUEL_SPECS).map(([key, spec]) => (
-                      <option key={key} value={key}>
-                        {spec.label}
-                      </option>
-                    ))}
+                    {Object.entries(FUEL_SPECS)
+                      .filter(([key]) => country !== 'US' || key !== 'wood_pellets')
+                      .map(([key, spec]) => (
+                        <option key={key} value={key}>
+                          {spec.label}
+                        </option>
+                      ))}
                   </select>
                 </div>
               )}

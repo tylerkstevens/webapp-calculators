@@ -801,10 +801,8 @@ export default function HashrateHeating() {
 
   // Update electricity rate when region changes
   useEffect(() => {
-    if (selectedRegion) {
-      const prices = getRegionPrices(selectedCountry, selectedRegion)
-      setElectricityRate(prices.electricity.toFixed(2))
-    }
+    const prices = getRegionPrices(selectedCountry, selectedRegion)
+    setElectricityRate(prices.electricity.toFixed(2))
   }, [selectedCountry, selectedRegion])
 
   // Calculate electricity rate from bill when both values entered
@@ -1039,6 +1037,15 @@ export default function HashrateHeating() {
 
   // Check if fuel type needs an efficiency input (not electric resistance - always 100%)
   const hasEfficiencyInput = fuelType !== 'electric_resistance'
+
+  // Get default rates for the selected region (for "YOU" row comparison in heat map)
+  const defaultRegionRates = useMemo(() => {
+    const prices = getRegionPrices(selectedCountry, selectedRegion)
+    return {
+      electricity: prices.electricity,
+      fuel: getDefaultFuelRate(fuelType, prices, selectedCountry),
+    }
+  }, [selectedCountry, selectedRegion, fuelType])
 
   // ============================================================================
   // Calculations
@@ -1796,7 +1803,7 @@ export default function HashrateHeating() {
             icon={Percent}
             label="Heating Subsidy"
             value={`${Math.round(copeResult.R * 100)}%`}
-            subValue={subsidyChartExpanded ? undefined : "Mining covers this % of electricity • Click to explore"}
+            subValue={subsidyChartExpanded ? undefined : "Mining offsets this % of electric heating • Click to explore"}
             tooltip="The percentage of your electricity cost offset by mining revenue. Formula: R = (Daily Mining Revenue / Daily Electricity Cost) × 100. At 50%, mining pays half your electric bill. At 100%, heating is free. Above 100%, you're profiting while heating. This is the 'R' value used in the COPe formula."
             variant={copeResult.R >= 1 ? 'success' : copeResult.R >= 0.5 ? 'highlight' : 'default'}
             expandable
@@ -1847,6 +1854,14 @@ export default function HashrateHeating() {
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Free or Paid Heating!</div>
                   <div className="text-xs sm:text-sm text-green-700 dark:text-green-400">Mining revenue exceeds electricity costs. You&apos;re effectively being paid to heat.</div>
+                  <a
+                    href="https://exergyheat.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-green-600 dark:text-green-400 hover:underline"
+                  >
+                    See what Exergy offers →
+                  </a>
                 </div>
               </div>
             )}
@@ -1858,6 +1873,14 @@ export default function HashrateHeating() {
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Hashrate Heating Recommended</div>
                   <div className="text-xs sm:text-sm text-blue-700 dark:text-blue-400">{arbitrageResult ? `${arbitrageResult.savingsPercent.toFixed(0)}% savings` : 'Savings'} vs {getFuelSpecs(fuelType, selectedCountry).label}. Mining offsets {(copeResult.R * 100).toFixed(0)}% of your electricity cost.</div>
+                  <a
+                    href="https://exergyheat.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    See what Exergy offers →
+                  </a>
                 </div>
               </div>
             )}
@@ -1886,6 +1909,12 @@ export default function HashrateHeating() {
           onRegionClick={(code) => setSelectedRegion(code)}
           minerPowerW={miner.powerW}
           minerHashrateTH={miner.hashrateTH}
+          selectedRegion={selectedRegion}
+          userElectricityRate={electricityRateNum}
+          userFuelRate={fuelRateNum}
+          userFuelEfficiency={fuelEfficiencyNum}
+          defaultElectricityRate={defaultRegionRates.electricity}
+          defaultFuelRate={defaultRegionRates.fuel}
         />
       )}
     </div>
