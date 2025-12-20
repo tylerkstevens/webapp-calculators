@@ -57,9 +57,13 @@ export interface ArbitrageResult {
 
 export const MINER_PRESETS: MinerSpec[] = [
   { name: 'Heatbit Trio', powerW: 400, hashrateTH: 10 },
+  { name: 'Heatbit Maxi', powerW: 1500, hashrateTH: 39 },
   { name: 'Avalon Mini 3', powerW: 850, hashrateTH: 40 },
   { name: 'Avalon Q', powerW: 1700, hashrateTH: 90 },
-  { name: 'Heat Core HS05', powerW: 5000, hashrateTH: 228 },
+  { name: 'Whastminer M64', powerW: 5000, hashrateTH: 228 },
+  { name: 'Bitmain S19j Pro', powerW: 3068, hashrateTH: 104 },
+  { name: 'Bitmain S19k Pro', powerW: 2760, hashrateTH: 120 },
+  { name: 'Bitmain S9', powerW: 1400, hashrateTH: 13.5 },
 ]
 
 // Default custom miner specs for the calculator
@@ -101,9 +105,83 @@ export const FUEL_SPECS = {
     btuPerUnit: 3412,
     typicalEfficiency: 3.0,  // COP of 3.0
   },
+  wood_pellets: {
+    label: 'Wood Pellets',
+    unit: 'bag',
+    btuPerUnit: 330000,      // 16.5M BTU/ton ÷ 50 bags/ton = 330,000 BTU per 40 lb bag
+    typicalEfficiency: 0.80, // 80% efficiency for pellet stove
+  },
 } as const
 
 export type FuelType = keyof typeof FUEL_SPECS
+
+// Country type for fuel specs
+export type Country = 'US' | 'CA'
+
+// Interface for fuel spec (allows different units/values per country)
+interface FuelSpecItem {
+  label: string
+  unit: string
+  btuPerUnit: number
+  typicalEfficiency: number
+}
+
+type FuelSpecsMap = Record<FuelType, FuelSpecItem>
+
+// Country-specific fuel specs with proper units
+// US uses imperial (therm, gallon), Canada uses metric (GJ, litre)
+export const FUEL_SPECS_BY_COUNTRY: Record<Country, FuelSpecsMap> = {
+  US: FUEL_SPECS,
+  CA: {
+    natural_gas: {
+      label: 'Natural Gas',
+      unit: 'GJ',
+      btuPerUnit: 947817,        // 1 GJ = 947,817 BTU
+      typicalEfficiency: 0.92,
+    },
+    propane: {
+      label: 'Propane',
+      unit: 'litre',
+      btuPerUnit: 24200,         // 91,500 BTU/gal ÷ 3.785 L/gal
+      typicalEfficiency: 0.90,
+    },
+    heating_oil: {
+      label: 'Heating Oil',
+      unit: 'litre',
+      btuPerUnit: 36600,         // 138,500 BTU/gal ÷ 3.785 L/gal
+      typicalEfficiency: 0.85,
+    },
+    electric_resistance: {
+      label: 'Electric Resistance',
+      unit: 'kWh',
+      btuPerUnit: 3412,
+      typicalEfficiency: 1.0,
+    },
+    heat_pump: {
+      label: 'Heat Pump',
+      unit: 'kWh',
+      btuPerUnit: 3412,
+      typicalEfficiency: 3.0,
+    },
+    wood_pellets: {
+      label: 'Wood Pellets',
+      unit: 'bag',               // 40 lb bag (same unit for US and CA)
+      btuPerUnit: 299460,        // 16.5M BTU/tonne ÷ 55.12 bags/tonne
+      typicalEfficiency: 0.80,
+    },
+  },
+}
+
+/**
+ * Get fuel specs for a specific country.
+ * Falls back to US specs if country not found.
+ */
+export function getFuelSpecs(fuelType: FuelType, country: Country = 'US') {
+  return FUEL_SPECS_BY_COUNTRY[country]?.[fuelType] ?? FUEL_SPECS[fuelType]
+}
+
+// USD to CAD exchange rate for BTC price conversion
+export const USD_TO_CAD_RATE = 1.40
 
 // BTU per kWh (for conversions)
 const BTU_PER_KWH = 3412

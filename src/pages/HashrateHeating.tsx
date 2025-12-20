@@ -14,6 +14,8 @@ import {
   DEFAULT_CUSTOM_MINER,
   MINER_PRESETS,
   FUEL_SPECS,
+  getFuelSpecs,
+  USD_TO_CAD_RATE,
   FuelType,
   MinerSpec,
   BTCMetrics,
@@ -21,9 +23,11 @@ import {
 
 import { getBraiinsData, BraiinsMetrics } from '../api/bitcoin'
 import {
-  STATES_LIST,
-  getStatePrices,
+  Country,
+  getRegionsList,
+  getRegionPrices,
   getDefaultFuelRate,
+  getCurrencySymbol,
 } from '../data/fuelPrices'
 
 
@@ -634,11 +638,22 @@ export default function HashrateHeating() {
   const [billAmount, setBillAmount] = useState('')
   const [billKwh, setBillKwh] = useState('')
 
+  // Location inputs
+  const [selectedCountry, setSelectedCountry] = useState<Country>('US')
+  const [selectedRegion, setSelectedRegion] = useState<string>('')
+
+  // Currency and unit helpers
+  const currencySymbol = getCurrencySymbol(selectedCountry)
+  const currencyMultiplier = selectedCountry === 'CA' ? USD_TO_CAD_RATE : 1
+
   // Fuel inputs
-  const [selectedState, setSelectedState] = useState<string>('')
   const [fuelType, setFuelType] = useState<FuelType>('propane')
   const [fuelRate, setFuelRate] = useState('2.75')
   const [fuelEfficiency, setFuelEfficiency] = useState('0.90') // AFUE as decimal or COP
+
+  // Fuel bill calculator
+  const [fuelBillAmount, setFuelBillAmount] = useState('')
+  const [fuelBillUsage, setFuelBillUsage] = useState('')
 
   // Chart expansion state
   const [savingsChartExpanded, setSavingsChartExpanded] = useState(false)
@@ -763,14 +778,14 @@ export default function HashrateHeating() {
     fetchBtcData()
   }, [])
 
-  // Update fuel rate when state or fuel type changes
+  // Update fuel rate when region or fuel type changes
   useEffect(() => {
-    const prices = getStatePrices(selectedState)
-    const defaultRate = getDefaultFuelRate(fuelType, prices)
+    const prices = getRegionPrices(selectedCountry, selectedRegion)
+    const defaultRate = getDefaultFuelRate(fuelType, prices, selectedCountry)
     setFuelRate(defaultRate.toFixed(2))
-  }, [selectedState, fuelType])
+  }, [selectedCountry, selectedRegion, fuelType])
 
-  // Update fuel efficiency default when fuel type changes
+  // Update fuel efficiency default and reset bill calculator when fuel type changes
   useEffect(() => {
     const defaultEfficiency = FUEL_SPECS[fuelType].typicalEfficiency
     // For AFUE fuels (< 1), show as percentage; for COP (heat pump), show as decimal
@@ -779,15 +794,16 @@ export default function HashrateHeating() {
     } else {
       setFuelEfficiency((defaultEfficiency * 100).toFixed(0))
     }
+    // Reset bill calculator when fuel type changes
+    setFuelBillAmount('')
+    setFuelBillUsage('')
   }, [fuelType])
 
-  // Update electricity rate when state changes
+  // Update electricity rate when region changes
   useEffect(() => {
-    if (selectedState) {
-      const prices = getStatePrices(selectedState)
-      setElectricityRate(prices.electricity.toFixed(2))
-    }
-  }, [selectedState])
+    const prices = getRegionPrices(selectedCountry, selectedRegion)
+    setElectricityRate(prices.electricity.toFixed(2))
+  }, [selectedCountry, selectedRegion])
 
   // Calculate electricity rate from bill when both values entered
   useEffect(() => {
@@ -798,6 +814,16 @@ export default function HashrateHeating() {
       setElectricityRate(calculatedRate.toFixed(3))
     }
   }, [billAmount, billKwh])
+
+  // Calculate fuel rate from bill when both values entered
+  useEffect(() => {
+    const bill = parseFloat(fuelBillAmount)
+    const usage = parseFloat(fuelBillUsage)
+    if (bill > 0 && usage > 0) {
+      const calculatedRate = bill / usage
+      setFuelRate(calculatedRate.toFixed(2))
+    }
+  }, [fuelBillAmount, fuelBillUsage])
 
   // ============================================================================
   // Derived Values
@@ -940,19 +966,22 @@ export default function HashrateHeating() {
 
   // KNOB 1: Calculate effective BTC price (Price group)
   // BTC Price and Hashprice are directly related via hashvalue
+  // Apply currency conversion for Canada (API returns USD)
   const effectiveBtcPrice = useMemo(() => {
     if (btcPriceOverride) {
-      return parseFloat(btcPriceOverride) || btcPrice
+      // User override is already in local currency
+      return parseFloat(btcPriceOverride) || (btcPrice ? btcPrice * currencyMultiplier : null)
     }
     if (hashpriceOverride && effectiveHashvalue) {
       const hp = parseFloat(hashpriceOverride)
       if (hp > 0 && effectiveHashvalue > 0) {
-        // Back-calculate: btcPrice = hashprice × 1e8 / hashvalue
+        // Back-calculate: btcPrice = hashprice × 1e8 / hashvalue (already in local currency)
         return (hp * 1e8) / effectiveHashvalue
       }
     }
-    return btcPrice
-  }, [btcPriceOverride, hashpriceOverride, effectiveHashvalue, btcPrice])
+    // Convert API price (USD) to local currency
+    return btcPrice ? btcPrice * currencyMultiplier : null
+  }, [btcPriceOverride, hashpriceOverride, effectiveHashvalue, btcPrice, currencyMultiplier])
 
   const btcMetrics: BTCMetrics | null = useMemo(() => {
     if (effectiveBtcPrice === null || effectiveNetworkHashrate === null) return null
@@ -1009,6 +1038,15 @@ export default function HashrateHeating() {
   // Check if fuel type needs an efficiency input (not electric resistance - always 100%)
   const hasEfficiencyInput = fuelType !== 'electric_resistance'
 
+  // Get default rates for the selected region (for "YOU" row comparison in heat map)
+  const defaultRegionRates = useMemo(() => {
+    const prices = getRegionPrices(selectedCountry, selectedRegion)
+    return {
+      electricity: prices.electricity,
+      fuel: getDefaultFuelRate(fuelType, prices, selectedCountry),
+    }
+  }, [selectedCountry, selectedRegion, fuelType])
+
   // ============================================================================
   // Calculations
   // ============================================================================
@@ -1026,35 +1064,38 @@ export default function HashrateHeating() {
   }, [fuelType, fuelRateNum, electricityRateNum, miner, btcMetrics, isElectricFuel, fuelEfficiencyNum])
 
   // Calculate fuel-specific equivalent cost for comparison
-  // Shows $/therm for nat gas, $/gallon for propane/oil, nothing for electric
+  // Uses country-aware units: therm/gallon for US, GJ/litre for Canada
   const fuelEquivalentCost = useMemo(() => {
     if (!copeResult) return null
 
     const costPerKwh = copeResult.effectiveCostPerKwh
-    const BTU_PER_KWH = 3412
+    const fuelSpec = getFuelSpecs(fuelType, selectedCountry)
+
+    // Conversion factors: kWh per unit
+    const kwhPerUnit: Record<string, Record<string, number>> = {
+      US: {
+        natural_gas: 29.307,    // 1 therm = 29.307 kWh
+        propane: 26.82,         // 1 gallon propane = 26.82 kWh
+        heating_oil: 40.59,     // 1 gallon heating oil = 40.59 kWh
+      },
+      CA: {
+        natural_gas: 277.78,    // 1 GJ = 277.78 kWh
+        propane: 7.08,          // 1 litre propane = 7.08 kWh
+        heating_oil: 10.73,     // 1 litre heating oil = 10.73 kWh
+      },
+    }
 
     switch (fuelType) {
       case 'natural_gas':
-        // 1 therm = 100,000 BTU = 29.307 kWh
-        return {
-          value: costPerKwh * 29.307,
-          unit: 'therm',
-          label: '$/therm',
-        }
       case 'propane':
-        // 1 gallon propane = 91,500 BTU = 26.82 kWh
+      case 'heating_oil': {
+        const multiplier = kwhPerUnit[selectedCountry]?.[fuelType] || kwhPerUnit.US[fuelType]
         return {
-          value: costPerKwh * (91500 / BTU_PER_KWH),
-          unit: 'gal',
-          label: '$/gal',
+          value: costPerKwh * multiplier,
+          unit: fuelSpec.unit,
+          label: `${currencySymbol}/${fuelSpec.unit}`,
         }
-      case 'heating_oil':
-        // 1 gallon heating oil = 138,500 BTU = 40.59 kWh
-        return {
-          value: costPerKwh * (138500 / BTU_PER_KWH),
-          unit: 'gal',
-          label: '$/gal',
-        }
+      }
       case 'electric_resistance':
       case 'heat_pump':
         // No third unit needed - already comparing to $/kWh
@@ -1062,7 +1103,7 @@ export default function HashrateHeating() {
       default:
         return null
     }
-  }, [copeResult, fuelType])
+  }, [copeResult, fuelType, selectedCountry, currencySymbol])
 
   const minerEfficiency = getMinerEfficiency(miner)
 
@@ -1072,14 +1113,14 @@ export default function HashrateHeating() {
 
   // X-axis configuration for the savings chart
   const chartXAxisConfig = useMemo(() => {
-    const fuelUnit = FUEL_SPECS[fuelType].unit
+    const fuelSpec = getFuelSpecs(fuelType, selectedCountry)
     return {
-      electricity: { min: 0.05, max: 0.30, step: 0.025, unit: '$/kWh', label: 'Electricity Rate' },
-      fuel: { min: Math.max(0.5, fuelRateNum * 0.5), max: fuelRateNum * 2, step: (fuelRateNum * 1.5) / 10, unit: `$/${fuelUnit}`, label: `${FUEL_SPECS[fuelType].label} Rate` },
+      electricity: { min: 0.05, max: 0.30, step: 0.025, unit: `${currencySymbol}/kWh`, label: 'Electricity Rate' },
+      fuel: { min: Math.max(0.5, fuelRateNum * 0.5), max: fuelRateNum * 2, step: (fuelRateNum * 1.5) / 10, unit: `${currencySymbol}/${fuelSpec.unit}`, label: `${fuelSpec.label} Rate` },
       efficiency: { min: 10, max: 50, step: 4, unit: 'J/TH', label: 'Miner Efficiency' },
-      hashprice: { min: 0.02, max: 0.12, step: 0.01, unit: '$/TH/d', label: 'Hashprice' },
+      hashprice: { min: 0.02, max: 0.12, step: 0.01, unit: `${currencySymbol}/TH/d`, label: 'Hashprice' },
     }
-  }, [fuelType, fuelRateNum])
+  }, [fuelType, fuelRateNum, selectedCountry, currencySymbol])
 
   // Calculate savings at a specific X value
   const calculateSavingsAtX = useCallback((xValue: number, xAxis: 'electricity' | 'fuel' | 'efficiency' | 'hashprice'): number => {
@@ -1311,15 +1352,15 @@ export default function HashrateHeating() {
                       )}
                     </div>
                     <div className="flex items-center justify-center gap-0.5 sm:gap-1">
-                      <span className="text-surface-500 dark:text-surface-400 text-xs sm:text-sm font-medium">$</span>
+                      <span className="text-surface-500 dark:text-surface-400 text-xs sm:text-sm font-medium">{currencySymbol}</span>
                       <input
                         type="number"
-                        value={btcPriceOverride || (hashpriceOverride ? effectiveBtcPrice?.toFixed(0) : btcPrice?.toString()) || ''}
+                        value={btcPriceOverride || (hashpriceOverride ? effectiveBtcPrice?.toFixed(0) : (btcPrice ? (btcPrice * currencyMultiplier).toFixed(0) : '')) || ''}
                         onChange={(e) => handleBtcPriceOverride(e.target.value)}
                         className={`w-16 sm:w-24 text-base sm:text-xl font-bold text-center py-0.5 sm:py-1 bg-transparent focus:outline-none ${
                           btcPriceOverride ? 'text-green-700 dark:text-green-400' : 'text-surface-900 dark:text-surface-100'
                         }`}
-                        placeholder={btcPrice?.toLocaleString()}
+                        placeholder={(btcPrice ? (btcPrice * currencyMultiplier) : 0)?.toLocaleString()}
                       />
                     </div>
                   </div>
@@ -1338,7 +1379,7 @@ export default function HashrateHeating() {
                       )}
                     </div>
                     <div className="flex items-center justify-center gap-0.5 sm:gap-1">
-                      <span className="text-surface-500 dark:text-surface-400 text-xs sm:text-sm">$</span>
+                      <span className="text-surface-500 dark:text-surface-400 text-xs sm:text-sm">{currencySymbol}</span>
                       <input
                         type="number"
                         value={hashpriceOverride || networkMetrics?.hashprice.toFixed(4) || ''}
@@ -1425,6 +1466,198 @@ export default function HashrateHeating() {
       {/* Input Strip */}
       <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4 sm:p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {/* Location Selection */}
+          <div>
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
+              <Thermometer className="w-4 h-4 text-blue-500" />
+              Your Location
+            </h3>
+            <div className="space-y-3">
+              <SelectField
+                label="Country"
+                value={selectedCountry}
+                onChange={(value) => {
+                  const newCountry = value as Country
+                  setSelectedCountry(newCountry)
+                  setSelectedRegion('') // Reset region when country changes
+                  // Reset fuel type if wood_pellets selected and switching to US
+                  if (newCountry === 'US' && fuelType === 'wood_pellets') {
+                    setFuelType('natural_gas')
+                  }
+                }}
+                options={[
+                  { value: 'US', label: 'United States' },
+                  { value: 'CA', label: 'Canada' },
+                ]}
+              />
+              <SelectField
+                label={selectedCountry === 'US' ? 'State' : 'Province'}
+                value={selectedRegion}
+                onChange={setSelectedRegion}
+                options={[
+                  { value: '', label: `National Average` },
+                  ...getRegionsList(selectedCountry).map((region) => ({
+                    value: region.code,
+                    label: region.name,
+                  })),
+                ]}
+              />
+            </div>
+            {selectedRegion && (
+              <div className="mt-2 text-xs text-surface-500 dark:text-surface-400">
+                Avg. electricity: {getCurrencySymbol(selectedCountry)}{getRegionPrices(selectedCountry, selectedRegion).electricity.toFixed(2)}/kWh
+              </div>
+            )}
+          </div>
+
+          {/* Electricity Rate */}
+          <div>
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-primary-500" />
+              Electricity
+            </h3>
+            <InputField
+              label="Rate"
+              value={electricityRate}
+              onChange={setElectricityRate}
+              prefix={currencySymbol}
+              suffix="/kWh"
+              type="number"
+              min={0}
+              max={1}
+              step={0.001}
+              tooltip="Find your rate on your electric bill. Look for 'Price per kWh' or divide your total bill by kWh used. Include all charges (delivery, supply, taxes) for your true all-in rate. Or use the bill calculator below."
+            />
+            <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
+              <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">Calculate from bill:</div>
+              <div className="grid grid-cols-2 gap-2">
+                <InputField
+                  label="Bill"
+                  value={billAmount}
+                  onChange={setBillAmount}
+                  prefix={currencySymbol}
+                  type="number"
+                  min={0}
+                />
+                <InputField
+                  label="kWh"
+                  value={billKwh}
+                  onChange={setBillKwh}
+                  suffix="kWh"
+                  type="number"
+                  min={0}
+                />
+              </div>
+              <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
+                Auto-calculates rate above
+              </div>
+            </div>
+          </div>
+
+          {/* Fuel Type & Rate */}
+          <div>
+            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
+              <Flame className="w-4 h-4 text-orange-500" />
+              Compare to Fuel
+            </h3>
+            <SelectField
+              label="Fuel Type"
+              value={fuelType}
+              onChange={(value) => setFuelType(value as FuelType)}
+              options={Object.entries(FUEL_SPECS)
+                .filter(([key]) => selectedCountry !== 'US' || key !== 'wood_pellets')
+                .map(([key, spec]) => ({
+                  value: key,
+                  label: spec.label,
+                }))}
+            />
+            {/* Show rate input only for non-electric fuel types */}
+            {!isElectricFuel && (
+              <>
+                <div className="mt-3">
+                  <InputField
+                    label="Rate"
+                    value={fuelRate}
+                    onChange={setFuelRate}
+                    prefix={currencySymbol}
+                    suffix={`/${getFuelSpecs(fuelType, selectedCountry).unit}`}
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    tooltip={
+                      fuelType === 'natural_gas'
+                        ? selectedCountry === 'CA'
+                          ? "Find your rate on your gas bill under 'Price per GJ'. Include delivery charges for total cost."
+                          : "Find your rate on your gas bill under 'Price per therm' or 'Cost per CCF' (1 CCF ≈ 1.037 therms). Include delivery charges for total cost."
+                        : fuelType === 'propane'
+                        ? "Check your propane delivery receipt or contact your supplier. Prices vary seasonally — use your average annual rate for best accuracy."
+                        : fuelType === 'wood_pellets'
+                        ? "Enter your cost per 40 lb bag. You can use the calculator below to figure this out from your purchase."
+                        : "Find your rate on your heating oil delivery receipt. Prices vary seasonally — use your average annual rate for best accuracy."
+                    }
+                  />
+                </div>
+                <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
+                  <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">
+                    {fuelType === 'wood_pellets' ? 'Calculate from purchase:' : 'Calculate from bill:'}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField
+                      label="Cost"
+                      value={fuelBillAmount}
+                      onChange={setFuelBillAmount}
+                      prefix={currencySymbol}
+                      type="number"
+                      min={0}
+                    />
+                    <InputField
+                      label={getFuelSpecs(fuelType, selectedCountry).unit}
+                      value={fuelBillUsage}
+                      onChange={setFuelBillUsage}
+                      suffix={fuelType === 'wood_pellets' ? '40 lb bag' : getFuelSpecs(fuelType, selectedCountry).unit}
+                      type="number"
+                      min={0}
+                    />
+                  </div>
+                  <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
+                    Auto-calculates rate above
+                  </div>
+                </div>
+              </>
+            )}
+            {/* Show efficiency input for fuels that have it (not electric resistance) */}
+            {hasEfficiencyInput && (
+              <div className="mt-3">
+                <InputField
+                  label={fuelType === 'heat_pump' ? 'COP' : 'AFUE'}
+                  value={fuelEfficiency}
+                  onChange={setFuelEfficiency}
+                  suffix={fuelType === 'heat_pump' ? '' : '%'}
+                  type="number"
+                  min={fuelType === 'heat_pump' ? 1 : 50}
+                  max={fuelType === 'heat_pump' ? 6 : 100}
+                  step={fuelType === 'heat_pump' ? 0.1 : 1}
+                  tooltip={
+                    fuelType === 'heat_pump'
+                      ? "COP (Coefficient of Performance) measures heat output vs electricity input. A COP of 3.0 means 3 kWh of heat per 1 kWh of electricity. Find your unit's COP on its spec sheet or EnergyGuide label. COP varies with outdoor temperature — use your seasonal average."
+                      : "AFUE (Annual Fuel Utilization Efficiency) measures what percentage of fuel becomes heat. Find it on your furnace/boiler's yellow EnergyGuide label or spec plate. Modern gas furnaces: 90-98%. Older units: 56-70%. Boilers: 80-95%."
+                  }
+                />
+              </div>
+            )}
+            {/* Info message for electric fuel types */}
+            {fuelType === 'electric_resistance' && (
+              <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-xs text-blue-700 dark:text-blue-300">
+                Uses your ${electricityRateNum.toFixed(2)}/kWh rate at 100% efficiency
+              </div>
+            )}
+            {fuelType === 'heat_pump' && (
+              <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-xs text-blue-700 dark:text-blue-300">
+                Effective rate: ${(electricityRateNum / fuelEfficiencyNum).toFixed(3)}/kWh
+              </div>
+            )}
+          </div>
+
           {/* Miner Selection */}
           <div>
             <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
@@ -1474,145 +1707,6 @@ export default function HashrateHeating() {
               </div>
             </div>
           </div>
-
-          {/* Electricity Rate */}
-          <div>
-            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-primary-500" />
-              Electricity
-            </h3>
-            <InputField
-              label="Rate"
-              value={electricityRate}
-              onChange={setElectricityRate}
-              prefix="$"
-              suffix="/kWh"
-              type="number"
-              min={0}
-              max={1}
-              step={0.001}
-              tooltip="Find your rate on your electric bill. Look for 'Price per kWh' or divide your total bill by kWh used. Include all charges (delivery, supply, taxes) for your true all-in rate. Or use the bill calculator below."
-            />
-            <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
-              <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">Calculate from bill:</div>
-              <div className="grid grid-cols-2 gap-2">
-                <InputField
-                  label="Bill"
-                  value={billAmount}
-                  onChange={setBillAmount}
-                  prefix="$"
-                  type="number"
-                  min={0}
-                />
-                <InputField
-                  label="kWh"
-                  value={billKwh}
-                  onChange={setBillKwh}
-                  suffix="kWh"
-                  type="number"
-                  min={0}
-                />
-              </div>
-              <div className="text-xs text-surface-500 dark:text-surface-400 pt-1">
-                Auto-calculates rate above
-              </div>
-            </div>
-          </div>
-
-          {/* Fuel Type & Rate */}
-          <div>
-            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
-              <Flame className="w-4 h-4 text-orange-500" />
-              Compare to Fuel
-            </h3>
-            <SelectField
-              label="Fuel Type"
-              value={fuelType}
-              onChange={(value) => setFuelType(value as FuelType)}
-              options={Object.entries(FUEL_SPECS).map(([key, spec]) => ({
-                value: key,
-                label: spec.label,
-              }))}
-            />
-            {/* Show rate input only for non-electric fuel types */}
-            {!isElectricFuel && (
-              <div className="mt-3">
-                <InputField
-                  label="Rate"
-                  value={fuelRate}
-                  onChange={setFuelRate}
-                  prefix="$"
-                  suffix={`/${FUEL_SPECS[fuelType].unit}`}
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  tooltip={
-                    fuelType === 'natural_gas'
-                      ? "Find your rate on your gas bill under 'Price per therm' or 'Cost per CCF' (1 CCF ≈ 1.037 therms). Include delivery charges for total cost."
-                      : fuelType === 'propane'
-                      ? "Check your propane delivery receipt or contact your supplier. Prices vary seasonally — use your average annual rate for best accuracy."
-                      : "Find your rate on your heating oil delivery receipt. Prices vary seasonally — use your average annual rate for best accuracy."
-                  }
-                />
-              </div>
-            )}
-            {/* Show efficiency input for fuels that have it (not electric resistance) */}
-            {hasEfficiencyInput && (
-              <div className="mt-3">
-                <InputField
-                  label={fuelType === 'heat_pump' ? 'COP' : 'AFUE'}
-                  value={fuelEfficiency}
-                  onChange={setFuelEfficiency}
-                  suffix={fuelType === 'heat_pump' ? '' : '%'}
-                  type="number"
-                  min={fuelType === 'heat_pump' ? 1 : 50}
-                  max={fuelType === 'heat_pump' ? 6 : 100}
-                  step={fuelType === 'heat_pump' ? 0.1 : 1}
-                  tooltip={
-                    fuelType === 'heat_pump'
-                      ? "COP (Coefficient of Performance) measures heat output vs electricity input. A COP of 3.0 means 3 kWh of heat per 1 kWh of electricity. Find your unit's COP on its spec sheet or EnergyGuide label. COP varies with outdoor temperature — use your seasonal average."
-                      : "AFUE (Annual Fuel Utilization Efficiency) measures what percentage of fuel becomes heat. Find it on your furnace/boiler's yellow EnergyGuide label or spec plate. Modern gas furnaces: 90-98%. Older units: 56-70%. Boilers: 80-95%."
-                  }
-                />
-              </div>
-            )}
-            {/* Info message for electric fuel types */}
-            {fuelType === 'electric_resistance' && (
-              <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-xs text-blue-700 dark:text-blue-300">
-                Uses your ${electricityRateNum.toFixed(2)}/kWh rate at 100% efficiency
-              </div>
-            )}
-            {fuelType === 'heat_pump' && (
-              <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-xs text-blue-700 dark:text-blue-300">
-                Effective rate: ${(electricityRateNum / fuelEfficiencyNum).toFixed(3)}/kWh
-              </div>
-            )}
-          </div>
-
-          {/* State Selection */}
-          <div>
-            <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
-              <Thermometer className="w-4 h-4 text-blue-500" />
-              Your Region
-            </h3>
-            <SelectField
-              label="State/Region"
-              value={selectedState}
-              onChange={setSelectedState}
-              options={[
-                { value: '', label: 'US National Average' },
-                ...STATES_LIST.map((state) => ({
-                  value: state.abbr,
-                  label: state.name,
-                })),
-              ]}
-            />
-            {selectedState && (
-              <div className="mt-2 text-xs text-surface-500 dark:text-surface-400">
-                Avg. electricity: ${getStatePrices(selectedState).electricity.toFixed(2)}/kWh
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -1623,10 +1717,10 @@ export default function HashrateHeating() {
           <MetricCard
             icon={DollarSign}
             label="Effective Heat Cost"
-            value={`$${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`}
-            secondaryValue={`$${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`}
-            tertiaryValue={fuelEquivalentCost ? `$${fuelEquivalentCost.value.toFixed(2)}/${fuelEquivalentCost.unit}` : undefined}
-            tooltip={`Your net cost per unit of heat after Bitcoin mining revenue offset. Formula: (Daily Electricity Cost - Daily Mining Revenue) / Daily kWh. Negative values mean you're being paid to heat.${fuelEquivalentCost ? ` The ${fuelEquivalentCost.label} rate lets you compare directly to your ${FUEL_SPECS[fuelType].label} bills.` : ''}`}
+            value={`${currencySymbol}${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`}
+            secondaryValue={`${currencySymbol}${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`}
+            tertiaryValue={fuelEquivalentCost ? `${currencySymbol}${fuelEquivalentCost.value.toFixed(2)}/${fuelEquivalentCost.unit}` : undefined}
+            tooltip={`Your net cost per unit of heat after Bitcoin mining revenue offset. Formula: (Daily Electricity Cost - Daily Mining Revenue) / Daily kWh. Negative values mean you're being paid to heat.${fuelEquivalentCost ? ` The ${fuelEquivalentCost.label} rate lets you compare directly to your ${getFuelSpecs(fuelType, selectedCountry).label} bills.` : ''}`}
             variant={copeResult.effectiveCostPerKwh <= 0 ? 'success' : 'default'}
           />
 
@@ -1634,7 +1728,7 @@ export default function HashrateHeating() {
           <MetricCard
             icon={Zap}
             label="Break-even Rate"
-            value={`$${copeResult.breakevenRate.toFixed(3)}/kWh`}
+            value={`${currencySymbol}${copeResult.breakevenRate.toFixed(3)}/kWh`}
             subValue="Free heating & profitable mining below this rate"
             tooltip="The maximum electricity rate for free heating. Formula: (Daily BTC Mined × BTC Price) / Daily kWh. At this rate, R = 100% and COPe = ∞. Below this rate, you profit while heating. This rate changes with BTC price and network hashrate — lock in low electricity rates to maintain profitability through market cycles."
             variant="default"
@@ -1655,9 +1749,9 @@ export default function HashrateHeating() {
           {arbitrageResult && (
             <MetricCard
               icon={Flame}
-              label={`Savings vs ${FUEL_SPECS[fuelType].label}`}
+              label={`Savings vs ${getFuelSpecs(fuelType, selectedCountry).label}`}
               value={`${arbitrageResult.savingsPercent >= 0 ? '+' : ''}${arbitrageResult.savingsPercent.toFixed(0)}%`}
-              subValue={savingsChartExpanded ? undefined : `${FUEL_SPECS[fuelType].label}: $${arbitrageResult.traditionalCostPerKwh.toFixed(3)}/kWh • Click to explore`}
+              subValue={savingsChartExpanded ? undefined : `${getFuelSpecs(fuelType, selectedCountry).label}: ${currencySymbol}${arbitrageResult.traditionalCostPerKwh.toFixed(3)}/kWh • Click to explore`}
               tooltip="Percentage savings vs your selected fuel. Formula: ((Traditional $/kWh - Hashrate $/kWh) / Traditional $/kWh) × 100. Traditional fuel cost accounts for efficiency (AFUE for gas/oil, COP for heat pumps). Positive = you save money with hashrate heating. Negative = traditional fuel is cheaper at current BTC economics."
               variant={arbitrageResult.savingsPercent > 50 ? 'success' : arbitrageResult.savingsPercent > 0 ? 'highlight' : 'warning'}
               expandable
@@ -1671,7 +1765,7 @@ export default function HashrateHeating() {
                   config={savingsChartData.config}
                   xAxisOption={savingsChartXAxis}
                   onXAxisChange={setSavingsChartXAxis}
-                  fuelLabel={FUEL_SPECS[fuelType].label}
+                  fuelLabel={getFuelSpecs(fuelType, selectedCountry).label}
                   isElectricFuel={isElectricFuel}
                 />
               )}
@@ -1709,7 +1803,7 @@ export default function HashrateHeating() {
             icon={Percent}
             label="Heating Subsidy"
             value={`${Math.round(copeResult.R * 100)}%`}
-            subValue={subsidyChartExpanded ? undefined : "Mining covers this % of electricity • Click to explore"}
+            subValue={subsidyChartExpanded ? undefined : "Mining offsets this % of electric heating • Click to explore"}
             tooltip="The percentage of your electricity cost offset by mining revenue. Formula: R = (Daily Mining Revenue / Daily Electricity Cost) × 100. At 50%, mining pays half your electric bill. At 100%, heating is free. Above 100%, you're profiting while heating. This is the 'R' value used in the COPe formula."
             variant={copeResult.R >= 1 ? 'success' : copeResult.R >= 0.5 ? 'highlight' : 'default'}
             expandable
@@ -1760,6 +1854,14 @@ export default function HashrateHeating() {
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Free or Paid Heating!</div>
                   <div className="text-xs sm:text-sm text-green-700 dark:text-green-400">Mining revenue exceeds electricity costs. You&apos;re effectively being paid to heat.</div>
+                  <a
+                    href="https://exergyheat.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-green-600 dark:text-green-400 hover:underline"
+                  >
+                    See what Exergy offers →
+                  </a>
                 </div>
               </div>
             )}
@@ -1770,7 +1872,15 @@ export default function HashrateHeating() {
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Hashrate Heating Recommended</div>
-                  <div className="text-xs sm:text-sm text-blue-700 dark:text-blue-400">{arbitrageResult ? `${arbitrageResult.savingsPercent.toFixed(0)}% savings` : 'Savings'} vs {FUEL_SPECS[fuelType].label}. Mining offsets {(copeResult.R * 100).toFixed(0)}% of your electricity cost.</div>
+                  <div className="text-xs sm:text-sm text-blue-700 dark:text-blue-400">{arbitrageResult ? `${arbitrageResult.savingsPercent.toFixed(0)}% savings` : 'Savings'} vs {getFuelSpecs(fuelType, selectedCountry).label}. Mining offsets {(copeResult.R * 100).toFixed(0)}% of your electricity cost.</div>
+                  <a
+                    href="https://exergyheat.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    See what Exergy offers →
+                  </a>
                 </div>
               </div>
             )}
@@ -1781,7 +1891,7 @@ export default function HashrateHeating() {
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-sm sm:text-base">Keep Current Heating</div>
-                  <div className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">{FUEL_SPECS[fuelType].label} is {arbitrageResult ? `${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% cheaper` : 'cheaper'} than hashrate heating at current rates. Mining still offsets {(copeResult.R * 100).toFixed(0)}% of electric heating.</div>
+                  <div className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">{getFuelSpecs(fuelType, selectedCountry).label} is {arbitrageResult ? `${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% cheaper` : 'cheaper'} than hashrate heating at current rates. Mining still offsets {(copeResult.R * 100).toFixed(0)}% of electric heating.</div>
                 </div>
               </div>
             )}
@@ -1789,15 +1899,22 @@ export default function HashrateHeating() {
         )
       })()}
 
-      {/* State Comparison Map - Full width results section */}
+      {/* Region Comparison Map - Full width results section */}
       {copeResult && (
         <StateHeatMap
+          country={selectedCountry}
           btcMetrics={btcMetrics}
           selectedFuelType={fuelType}
           onFuelTypeChange={(fuel) => setFuelType(fuel)}
-          onStateClick={(abbr) => setSelectedState(abbr)}
+          onRegionClick={(code) => setSelectedRegion(code)}
           minerPowerW={miner.powerW}
           minerHashrateTH={miner.hashrateTH}
+          selectedRegion={selectedRegion}
+          userElectricityRate={electricityRateNum}
+          userFuelRate={fuelRateNum}
+          userFuelEfficiency={fuelEfficiencyNum}
+          defaultElectricityRate={defaultRegionRates.electricity}
+          defaultFuelRate={defaultRegionRates.fuel}
         />
       )}
     </div>
