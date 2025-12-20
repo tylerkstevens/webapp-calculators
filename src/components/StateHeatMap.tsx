@@ -1,6 +1,7 @@
 /**
- * US State Heat Map - Full-width results section showing metrics by state.
- * Supports: Savings % vs fuel, COPe, and Subsidy % views.
+ * Region Heat Map - Full-width results section showing metrics by region.
+ * Supports: US states and Canadian provinces.
+ * Metrics: Savings % vs fuel, COPe, and Subsidy % views.
  */
 
 import { useState, useMemo } from 'react'
@@ -14,13 +15,33 @@ import {
   calculateCOPe,
   formatCOPe,
 } from '../calculations/hashrate'
-import { STATE_FUEL_PRICES, getDefaultFuelRate } from '../data/fuelPrices'
+import {
+  Country,
+  COUNTRIES,
+  getDefaultFuelRate,
+  getCurrencySymbol,
+} from '../data/fuelPrices'
 
-// US TopoJSON from CDN
-const GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'
+// Map URLs by country
+const GEO_URLS: Record<Country, string> = {
+  US: 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json',
+  CA: 'https://gist.githubusercontent.com/Saw-mon-and-Natalie/a11f058fc0dcce9343b02498a46b3d44/raw/canada.json',
+}
 
-// Map state names from TopoJSON to our abbreviations
-const STATE_NAME_TO_ABBR: Record<string, string> = {
+// Map projections by country
+const MAP_PROJECTIONS: Record<Country, { projection: string; scale: number; center?: [number, number] }> = {
+  US: { projection: 'geoAlbersUsa', scale: 1100 },
+  CA: { projection: 'geoMercator', scale: 450, center: [-96, 60] },
+}
+
+// Mini map projections (smaller scale)
+const MINI_MAP_PROJECTIONS: Record<Country, { projection: string; scale: number; center?: [number, number] }> = {
+  US: { projection: 'geoAlbersUsa', scale: 380 },
+  CA: { projection: 'geoMercator', scale: 150, center: [-96, 60] },
+}
+
+// Map region names from TopoJSON to our abbreviations - US States
+const US_NAME_TO_ABBR: Record<string, string> = {
   'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
   'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
   'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
@@ -36,6 +57,29 @@ const STATE_NAME_TO_ABBR: Record<string, string> = {
   'Wisconsin': 'WI', 'Wyoming': 'WY',
 }
 
+// Map region names from TopoJSON to our abbreviations - Canadian Provinces
+const CA_NAME_TO_ABBR: Record<string, string> = {
+  'Alberta': 'AB',
+  'British Columbia': 'BC',
+  'Manitoba': 'MB',
+  'New Brunswick': 'NB',
+  'Newfoundland and Labrador': 'NL',
+  'Nova Scotia': 'NS',
+  'Northwest Territories': 'NT',
+  'Nunavut': 'NU',
+  'Ontario': 'ON',
+  'Prince Edward Island': 'PE',
+  'Quebec': 'QC',
+  'Saskatchewan': 'SK',
+  'Yukon': 'YT',
+}
+
+// Get name to abbr mapping for country
+const NAME_TO_ABBR: Record<Country, Record<string, string>> = {
+  US: US_NAME_TO_ABBR,
+  CA: CA_NAME_TO_ABBR,
+}
+
 // Metric types
 type MapMetric = 'savings' | 'cope' | 'subsidy'
 
@@ -46,10 +90,11 @@ const METRIC_LABELS: Record<MapMetric, string> = {
 }
 
 interface StateHeatMapProps {
+  country: Country
   btcMetrics: BTCMetrics | null
   selectedFuelType: FuelType
   onFuelTypeChange: (fuel: FuelType) => void
-  onStateClick?: (stateAbbr: string) => void
+  onRegionClick?: (regionCode: string) => void
   minerPowerW: number
   minerHashrateTH: number
 }
@@ -146,10 +191,11 @@ function formatMetricValue(value: number, metric: MapMetric): string {
 }
 
 export default function StateHeatMap({
+  country,
   btcMetrics,
   selectedFuelType,
   onFuelTypeChange,
-  onStateClick,
+  onRegionClick,
   minerPowerW,
   minerHashrateTH,
 }: StateHeatMapProps) {
@@ -158,7 +204,17 @@ export default function StateHeatMap({
   const [hoveredState, setHoveredState] = useState<StateMetrics | null>(null)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
 
-  // Calculate all metrics for all states using user's miner specs
+  // Get country-specific data
+  const countryData = COUNTRIES[country]
+  const currencySymbol = getCurrencySymbol(country)
+  const geoUrl = GEO_URLS[country]
+  const nameToAbbr = NAME_TO_ABBR[country]
+  const mapProjection = MAP_PROJECTIONS[country]
+  const miniMapProjection = MINI_MAP_PROJECTIONS[country]
+  const regionLabel = country === 'US' ? 'State' : 'Province'
+  const regionLabelPlural = country === 'US' ? 'states' : 'provinces'
+
+  // Calculate all metrics for all regions using user's miner specs
   const stateMetricsMap = useMemo(() => {
     const emptyMap: Map<string, StateMetrics> = new globalThis.Map()
     if (!btcMetrics) return emptyMap
@@ -170,8 +226,8 @@ export default function StateHeatMap({
       hashrateTH: minerHashrateTH,
     }
 
-    Object.entries(STATE_FUEL_PRICES).forEach(([abbr, stateInfo]) => {
-      const prices = stateInfo.prices
+    Object.entries(countryData.regions).forEach(([abbr, regionInfo]) => {
+      const prices = regionInfo.prices
       const electricityRate = prices.electricity
       const fuelRate = getDefaultFuelRate(selectedFuelType, prices)
 
@@ -188,7 +244,7 @@ export default function StateHeatMap({
 
       result.set(abbr, {
         abbr,
-        name: stateInfo.name,
+        name: regionInfo.name,
         electricityRate,
         fuelRate,
         savings: arbitrage.savingsPercent,
@@ -198,7 +254,7 @@ export default function StateHeatMap({
     })
 
     return result
-  }, [btcMetrics, selectedFuelType, minerPowerW, minerHashrateTH])
+  }, [btcMetrics, selectedFuelType, minerPowerW, minerHashrateTH, countryData])
 
   // Sort states by selected metric for mobile table
   const sortedStates = useMemo((): StateMetrics[] => {
@@ -229,17 +285,20 @@ export default function StateHeatMap({
   const renderMiniMap = () => (
     <div className="w-32 sm:w-40 h-14 sm:h-16 flex-shrink-0 overflow-hidden rounded bg-gray-100 dark:bg-gray-700">
       <ComposableMap
-        projection="geoAlbersUsa"
-        projectionConfig={{ scale: 380 }}
+        projection={miniMapProjection.projection as any}
+        projectionConfig={{
+          scale: miniMapProjection.scale,
+          center: miniMapProjection.center,
+        }}
         style={{ width: '100%', height: '100%' }}
       >
-        <Geographies geography={GEO_URL}>
+        <Geographies geography={geoUrl}>
           {({ geographies }) =>
             geographies.map((geo) => {
-              const stateName = geo.properties.name
-              const stateAbbr = STATE_NAME_TO_ABBR[stateName]
-              const stateData = stateAbbr ? stateMetricsMap.get(stateAbbr) : null
-              const metricValue = stateData ? getMetricValue(stateData) : 0
+              const regionName = geo.properties.name || geo.properties.NAME
+              const regionAbbr = nameToAbbr[regionName]
+              const regionData = regionAbbr ? stateMetricsMap.get(regionAbbr) : null
+              const metricValue = regionData ? getMetricValue(regionData) : 0
               const color = getColorForMetric(metricValue, selectedMetric)
 
               return (
@@ -267,13 +326,13 @@ export default function StateHeatMap({
   const renderStateTable = () => (
     <div>
       <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-        States ranked by {metricLabel}:
+        {regionLabelPlural.charAt(0).toUpperCase() + regionLabelPlural.slice(1)} ranked by {metricLabel}:
       </div>
       <div className="max-h-80 lg:max-h-[400px] overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
             <tr className="text-left text-gray-500 dark:text-gray-400">
-              <th className="py-2 px-3">State</th>
+              <th className="py-2 px-3">{regionLabel}</th>
               <th className="py-2 px-3">Elec.</th>
               <th className="py-2 px-3 text-right">{metricLabel}</th>
             </tr>
@@ -284,14 +343,14 @@ export default function StateHeatMap({
               return (
                 <tr
                   key={state.abbr}
-                  onClick={() => onStateClick?.(state.abbr)}
+                  onClick={() => onRegionClick?.(state.abbr)}
                   className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
                 >
                   <td className="py-2 px-3 font-medium text-gray-900 dark:text-gray-100">
                     {state.abbr}
                   </td>
                   <td className="py-2 px-3 text-gray-600 dark:text-gray-400">
-                    ${state.electricityRate.toFixed(2)}
+                    {currencySymbol}{state.electricityRate.toFixed(2)}
                   </td>
                   <td className="py-2 px-3 text-right">
                     <span
@@ -317,17 +376,20 @@ export default function StateHeatMap({
       onMouseMove={handleMouseMove}
     >
       <ComposableMap
-        projection="geoAlbersUsa"
-        projectionConfig={{ scale: 1100 }}
+        projection={mapProjection.projection as any}
+        projectionConfig={{
+          scale: mapProjection.scale,
+          center: mapProjection.center,
+        }}
         style={{ width: '100%', height: '100%' }}
       >
-        <Geographies geography={GEO_URL}>
+        <Geographies geography={geoUrl}>
           {({ geographies }) =>
             geographies.map((geo) => {
-              const stateName = geo.properties.name
-              const stateAbbr = STATE_NAME_TO_ABBR[stateName]
-              const stateData = stateAbbr ? stateMetricsMap.get(stateAbbr) : null
-              const metricValue = stateData ? getMetricValue(stateData) : 0
+              const regionName = geo.properties.name || geo.properties.NAME
+              const regionAbbr = nameToAbbr[regionName]
+              const regionData = regionAbbr ? stateMetricsMap.get(regionAbbr) : null
+              const metricValue = regionData ? getMetricValue(regionData) : 0
               const color = getColorForMetric(metricValue, selectedMetric)
 
               return (
@@ -343,12 +405,12 @@ export default function StateHeatMap({
                     pressed: { outline: 'none' },
                   }}
                   onMouseEnter={() => {
-                    if (stateData) setHoveredState(stateData)
+                    if (regionData) setHoveredState(regionData)
                   }}
                   onMouseLeave={() => setHoveredState(null)}
                   onClick={() => {
-                    if (stateAbbr && onStateClick) {
-                      onStateClick(stateAbbr)
+                    if (regionAbbr && onRegionClick) {
+                      onRegionClick(regionAbbr)
                     }
                   }}
                 />
@@ -369,9 +431,9 @@ export default function StateHeatMap({
         >
           <div className="font-semibold text-sm">{hoveredState.name}</div>
           <div className="mt-1.5 space-y-0.5 text-gray-300">
-            <div>Electricity: ${hoveredState.electricityRate.toFixed(3)}/kWh</div>
+            <div>Electricity: {currencySymbol}{hoveredState.electricityRate.toFixed(3)}/kWh</div>
             {selectedMetric === 'savings' && (
-              <div>{fuelLabel}: ${hoveredState.fuelRate.toFixed(2)}/{FUEL_SPECS[selectedFuelType].unit}</div>
+              <div>{fuelLabel}: {currencySymbol}{hoveredState.fuelRate.toFixed(2)}/{FUEL_SPECS[selectedFuelType].unit}</div>
             )}
           </div>
           <div className="pt-1.5 mt-1.5 border-t border-gray-700 space-y-0.5">
@@ -385,7 +447,7 @@ export default function StateHeatMap({
               Subsidy: {formatMetricValue(hoveredState.subsidy, 'subsidy')}
             </div>
           </div>
-          <div className="mt-1.5 text-gray-400 text-[10px]">Click to select state</div>
+          <div className="mt-1.5 text-gray-400 text-[10px]">Click to select {regionLabel.toLowerCase()}</div>
         </div>
       )}
     </div>
@@ -407,11 +469,11 @@ export default function StateHeatMap({
             <div className="flex items-center gap-2">
               <Map className="w-4 h-4 text-primary-500 flex-shrink-0" />
               <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                State Average Comparison
+                {regionLabel} Average Comparison
               </span>
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {metricLabel} across all US states
+              {metricLabel} across all {countryData.name} {regionLabelPlural}
               {selectedMetric === 'savings' && ` vs ${fuelLabel}`}
             </div>
           </div>
@@ -443,7 +505,7 @@ export default function StateHeatMap({
             <div className="flex items-center gap-2">
               <Map className="w-5 h-5 text-primary-500" />
               <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                State Average Comparison
+                {regionLabel} Average Comparison
               </h3>
               {/* Info tooltip */}
               <div className="relative group/map">
@@ -451,7 +513,7 @@ export default function StateHeatMap({
                 <div className="absolute left-0 top-full mt-2 w-80 sm:w-96 p-4 bg-gray-900 text-white text-xs rounded-xl shadow-xl scale-95 opacity-0 pointer-events-none group-hover/map:scale-100 group-hover/map:opacity-100 group-hover/map:pointer-events-auto transition-all duration-150 z-[100]">
                   <div className="font-semibold text-sm mb-2">How This Map Works</div>
                   <p className="text-gray-300 mb-3">
-                    Compares hashrate heating economics across all 50 US states using <span className="text-white font-medium">your miner specs</span> but each state's <span className="text-white font-medium">average energy rates</span> (not your custom rates). This shows where hashrate heating is most favorable geographically.
+                    Compares hashrate heating economics across all {countryData.name} {regionLabelPlural} using <span className="text-white font-medium">your miner specs</span> but each {regionLabel.toLowerCase()}'s <span className="text-white font-medium">average energy rates</span> (not your custom rates). This shows where hashrate heating is most favorable geographically.
                   </p>
 
                   <div className="font-semibold text-sm mb-2 pt-2 border-t border-gray-700">Metrics Explained</div>
@@ -475,7 +537,7 @@ export default function StateHeatMap({
                   </div>
 
                   <div className="mt-3 pt-2 border-t border-gray-700 text-gray-400 text-[10px]">
-                    Click any state to select it and update the calculator above with that state's average rates.
+                    Click any {regionLabel.toLowerCase()} to select it and update the calculator above with that {regionLabel.toLowerCase()}'s average rates.
                   </div>
                 </div>
               </div>
@@ -561,7 +623,7 @@ export default function StateHeatMap({
           {/* Hint text */}
           <div className="text-center mt-3">
             <span className="text-xs text-gray-400 dark:text-gray-500">
-              Click a state to select it in the calculator above
+              Click a {regionLabel.toLowerCase()} to select it in the calculator above
             </span>
           </div>
         </div>
