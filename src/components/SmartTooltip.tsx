@@ -94,7 +94,7 @@ export default function SmartTooltip({ content }: SmartTooltipProps) {
       {isVisible && (
         <div
           ref={tooltipRef}
-          className="fixed z-[100] px-3 py-2 bg-surface-800 dark:bg-surface-700 text-white text-xs rounded-lg shadow-lg max-w-[calc(100vw-24px)] w-56 sm:w-64"
+          className="fixed z-[100] px-3 py-2 bg-surface-800/95 dark:bg-surface-700/95 backdrop-blur-sm text-white text-xs rounded-lg shadow-lg max-w-[calc(100vw-24px)] w-56 sm:w-64"
           style={{ left: position.x, top: position.y }}
         >
           {content}
