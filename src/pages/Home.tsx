@@ -81,7 +81,7 @@ export default function Home() {
       </div>
 
       {/* Info Section */}
-      <div className="bg-white dark:bg-surface-800 rounded-xl p-6 sm:p-8 text-center shadow-lg">
+      <div className="text-center">
         <h2 className="text-lg sm:text-2xl font-semibold text-surface-900 dark:text-surface-100 mb-2 sm:mb-4">
           What is Hashrate Heating?
         </h2>
