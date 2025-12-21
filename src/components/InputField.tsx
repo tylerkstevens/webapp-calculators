@@ -63,7 +63,7 @@ export default function InputField({
             w-full px-4 py-2.5 rounded-lg border border-surface-300 dark:border-surface-600
             bg-white dark:bg-surface-800 text-surface-900 dark:text-surface-100 placeholder-surface-400 dark:placeholder-surface-500
             focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent
-            transition-shadow duration-200
+            shadow-sm hover:shadow transition-all duration-200
             ${icon ? 'pl-10' : ''}
             ${prefix ? 'pl-8' : ''}
             ${suffix ? 'pr-12' : ''}

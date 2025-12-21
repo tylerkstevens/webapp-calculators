@@ -30,7 +30,7 @@ export default function ResultCard({
   }
 
   return (
-    <div className={`rounded-xl border p-4 ${variantStyles[variant]}`}>
+    <div className={`rounded-xl border p-4 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 ${variantStyles[variant]}`}>
       <div className="flex items-start gap-3">
         {icon && (
           <div className={`mt-1 ${valueStyles[variant]}`}>
