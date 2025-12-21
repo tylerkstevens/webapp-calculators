@@ -100,7 +100,7 @@ export default function Layout() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Company Info */}
             <div>
-              <a href="https://exergyheat.com" target="_blank" rel="noopener noreferrer" className="flex items-center hover:opacity-80 transition-opacity">
+              <a href="https://exergyheat.com" className="flex items-center hover:opacity-80 transition-opacity">
                 <img
                   src="https://exergyheat.com/Logo1_black_horizontal.png"
                   alt="EXERGY"
@@ -114,26 +114,26 @@ export default function Layout() {
 
             {/* Home Links */}
             <div>
-              <a href="https://exergyheat.com" target="_blank" rel="noopener noreferrer" className="text-lg font-medium mb-4 text-surface-100 hover:text-surface-200 transition-colors uppercase tracking-wide">Home</a>
+              <a href="https://exergyheat.com" className="text-lg font-medium mb-4 text-surface-100 hover:text-surface-200 transition-colors uppercase tracking-wide">Home</a>
               <ul className="space-y-2 mt-4">
                 <li>
-                  <a href="https://exergyheat.com/products" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Products</a>
+                  <a href="https://exergyheat.com/products" className="text-surface-400 hover:text-surface-200 transition-colors">Products</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/services" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Services</a>
+                  <a href="https://exergyheat.com/services" className="text-surface-400 hover:text-surface-200 transition-colors">Services</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/about" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">About</a>
+                  <a href="https://exergyheat.com/about" className="text-surface-400 hover:text-surface-200 transition-colors">About</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/portfolio" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Portfolio</a>
+                  <a href="https://exergyheat.com/portfolio" className="text-surface-400 hover:text-surface-200 transition-colors">Portfolio</a>
                 </li>
               </ul>
             </div>
 
             {/* Learn Links */}
             <div>
-              <a href="https://exergyheat.com/learn" target="_blank" rel="noopener noreferrer" className="text-lg font-medium mb-4 text-surface-100 hover:text-surface-200 transition-colors uppercase tracking-wide">Learn</a>
+              <a href="https://exergyheat.com/learn" className="text-lg font-medium mb-4 text-surface-100 hover:text-surface-200 transition-colors uppercase tracking-wide">Learn</a>
               <ul className="space-y-2 mt-4">
                 <li>
                   <Link to="/" className="text-surface-400 hover:text-surface-200 transition-colors">Calculators</Link>
@@ -145,10 +145,10 @@ export default function Layout() {
                   <a href="https://support.exergyheat.com" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Support</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/faq" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">FAQ</a>
+                  <a href="https://exergyheat.com/faq" className="text-surface-400 hover:text-surface-200 transition-colors">FAQ</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/blog" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Blog</a>
+                  <a href="https://exergyheat.com/blog" className="text-surface-400 hover:text-surface-200 transition-colors">Blog</a>
                 </li>
               </ul>
             </div>
