@@ -33,9 +33,7 @@ export default function MainNavbar() {
               <a
                 key={link.href}
                 href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="uppercase tracking-wide text-sm font-medium text-surface-600 dark:text-surface-300 hover:text-primary-500 dark:hover:text-primary-400 transition-colors"
+                className="font-subheading text-surface-600 dark:text-surface-300 hover:text-primary-500 dark:hover:text-primary-400 transition-colors"
               >
                 {link.label}
               </a>
@@ -63,9 +61,7 @@ export default function MainNavbar() {
                 <a
                   key={link.href}
                   href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block px-3 py-2 uppercase tracking-wide text-sm font-medium text-surface-600 dark:text-surface-300 hover:text-primary-500 dark:hover:text-primary-400 transition-colors"
+                  className="block px-3 py-2 font-subheading text-surface-600 dark:text-surface-300 hover:text-primary-500 dark:hover:text-primary-400 transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   {link.label}

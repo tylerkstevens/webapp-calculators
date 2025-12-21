@@ -1867,8 +1867,6 @@ export default function HashrateHeating() {
                   <div className="text-xs sm:text-sm text-green-700 dark:text-green-400">Mining revenue exceeds electricity costs. You&apos;re effectively being paid to heat.</div>
                   <a
                     href="https://exergyheat.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-green-600 dark:text-green-400 hover:underline"
                   >
                     See what Exergy offers →
@@ -1886,8 +1884,6 @@ export default function HashrateHeating() {
                   <div className="text-xs sm:text-sm text-blue-700 dark:text-blue-400">{arbitrageResult ? `${arbitrageResult.savingsPercent.toFixed(0)}% savings` : 'Savings'} vs {getFuelSpecs(fuelType, selectedCountry).label}. Mining offsets {(copeResult.R * 100).toFixed(0)}% of your electricity cost.</div>
                   <a
                     href="https://exergyheat.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     See what Exergy offers →

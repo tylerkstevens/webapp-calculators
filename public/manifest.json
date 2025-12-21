@@ -1,0 +1,16 @@
+{
+  "name": "Hashrate Heat Calculator",
+  "short_name": "Hashrate Heat",
+  "description": "Calculate various economic metrics to evaluate if bitcoin mining powered heat can subsidize your heating bills.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4970A5",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

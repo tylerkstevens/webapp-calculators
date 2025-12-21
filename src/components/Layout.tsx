@@ -100,66 +100,66 @@ export default function Layout() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Company Info */}
             <div>
-              <a href="https://exergyheat.com" target="_blank" rel="noopener noreferrer" className="flex items-center hover:opacity-80 transition-opacity">
+              <a href="https://exergyheat.com" className="flex items-center hover:opacity-80 transition-opacity">
                 <img
                   src="https://exergyheat.com/Logo1_black_horizontal.png"
                   alt="EXERGY"
                   className="h-8 w-auto filter brightness-0 invert"
                 />
               </a>
-              <p className="mt-4 text-surface-400">
+              <p className="mt-4 font-body text-surface-400">
                 Heat That Pays
               </p>
             </div>
 
             {/* Home Links */}
             <div>
-              <a href="https://exergyheat.com" target="_blank" rel="noopener noreferrer" className="text-lg font-medium mb-4 text-surface-100 hover:text-surface-200 transition-colors uppercase tracking-wide">Home</a>
+              <a href="https://exergyheat.com" className="text-lg font-subheading mb-4 text-surface-100 hover:text-surface-200 transition-colors">Home</a>
               <ul className="space-y-2 mt-4">
                 <li>
-                  <a href="https://exergyheat.com/products" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Products</a>
+                  <a href="https://exergyheat.com/products" className="font-body text-surface-400 hover:text-surface-200 transition-colors">Products</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/services" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Services</a>
+                  <a href="https://exergyheat.com/services" className="font-body text-surface-400 hover:text-surface-200 transition-colors">Services</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/about" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">About</a>
+                  <a href="https://exergyheat.com/about" className="font-body text-surface-400 hover:text-surface-200 transition-colors">About</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/portfolio" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Portfolio</a>
+                  <a href="https://exergyheat.com/portfolio" className="font-body text-surface-400 hover:text-surface-200 transition-colors">Portfolio</a>
                 </li>
               </ul>
             </div>
 
             {/* Learn Links */}
             <div>
-              <a href="https://exergyheat.com/learn" target="_blank" rel="noopener noreferrer" className="text-lg font-medium mb-4 text-surface-100 hover:text-surface-200 transition-colors uppercase tracking-wide">Learn</a>
+              <a href="https://exergyheat.com/learn" className="text-lg font-subheading mb-4 text-surface-100 hover:text-surface-200 transition-colors">Learn</a>
               <ul className="space-y-2 mt-4">
                 <li>
-                  <Link to="/" className="text-surface-400 hover:text-surface-200 transition-colors">Calculators</Link>
+                  <Link to="/" className="font-body text-surface-400 hover:text-surface-200 transition-colors">Calculators</Link>
                 </li>
                 <li>
-                  <a href="https://docs.exergyheat.com" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Docs</a>
+                  <a href="https://docs.exergyheat.com" target="_blank" rel="noopener noreferrer" className="font-body text-surface-400 hover:text-surface-200 transition-colors">Docs</a>
                 </li>
                 <li>
-                  <a href="https://support.exergyheat.com" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Support</a>
+                  <a href="https://support.exergyheat.com" target="_blank" rel="noopener noreferrer" className="font-body text-surface-400 hover:text-surface-200 transition-colors">Support</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/faq" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">FAQ</a>
+                  <a href="https://exergyheat.com/faq" className="font-body text-surface-400 hover:text-surface-200 transition-colors">FAQ</a>
                 </li>
                 <li>
-                  <a href="https://exergyheat.com/blog" target="_blank" rel="noopener noreferrer" className="text-surface-400 hover:text-surface-200 transition-colors">Blog</a>
+                  <a href="https://exergyheat.com/blog" className="font-body text-surface-400 hover:text-surface-200 transition-colors">Blog</a>
                 </li>
               </ul>
             </div>
 
             {/* Connect With Us */}
             <div>
-              <h3 className="text-lg font-medium mb-4 uppercase tracking-wide">Connect With Us</h3>
+              <h3 className="text-lg font-subheading mb-4">Connect With Us</h3>
               <div className="space-y-3 mb-6">
                 <div className="flex items-center">
                   <Mail className="h-5 w-5 text-primary-500" />
-                  <a href="mailto:contact@exergyheat.com" className="ml-2 text-surface-400 hover:text-surface-200 transition-colors">
+                  <a href="mailto:contact@exergyheat.com" className="ml-2 font-body text-surface-400 hover:text-surface-200 transition-colors">
                     contact@exergyheat.com
                   </a>
                 </div>
@@ -169,7 +169,7 @@ export default function Layout() {
                     href="https://maps.app.goo.gl/bp9d8a3GEpfzv3Kg7"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ml-2 text-surface-400 hover:text-surface-200 transition-colors"
+                    className="ml-2 font-body text-surface-400 hover:text-surface-200 transition-colors"
                   >
                     3700 N Franklin St. Denver, CO 80205
                   </a>
@@ -203,7 +203,7 @@ export default function Layout() {
             </div>
           </div>
 
-          <div className="mt-8 pt-8 border-t border-surface-800 text-center text-surface-400">
+          <div className="mt-8 pt-8 border-t border-surface-800 text-center font-body text-surface-400">
             <p>&copy; {new Date().getFullYear()} EXERGY. All rights reserved.</p>
           </div>
         </div>
