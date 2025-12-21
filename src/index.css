@@ -47,8 +47,8 @@ body {
     letter-spacing: 0.025em;
   }
 
-  /* Form labels and small text - Futura BK BT Book */
-  label, .text-sm, .text-xs {
+  /* Form labels - Futura BK BT Book */
+  label {
     font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
     text-transform: uppercase;
     font-weight: 500;
