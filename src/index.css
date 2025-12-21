@@ -1,3 +1,6 @@
+/* Import Futura PT font */
+@import url('https://fonts.cdnfonts.com/css/futura-pt');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,9 +10,56 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
+  font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@layer base {
+  /* Headings - Uppercase with letter-spacing */
+  h1 {
+    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  h2, h3, h4, h5, h6 {
+    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+  }
+
+  /* Labels - Uppercase styling */
+  label {
+    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+  }
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .font-subheading {
+    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+  }
+
+  .sentence-case {
+    text-transform: none;
+    font-weight: 300;
+  }
 }
 
 /* Custom scrollbar */

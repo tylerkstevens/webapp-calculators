@@ -28,11 +28,23 @@ export default {
           800: '#2d415d',
           900: '#29384f',
         },
+        secondary: {
+          50: '#F5F8FB',
+          100: '#EBF1F7',
+          200: '#D7E3EF',
+          300: '#C3D5E7',
+          400: '#AFC7DF',
+          500: '#9EA8BE',
+          600: '#718EBC',
+          700: '#5A7199',
+          800: '#435477',
+          900: '#2C3755',
+        },
         surface: {
-          50: '#f5f5f3',   // Warmer, less bright background
-          100: '#efeeed',  // Softer off-white
-          200: '#e3e2df',  // Warm gray
-          300: '#d4d3d0',  // Slightly warm
+          50: '#f5f5f3',
+          100: '#efeeed',
+          200: '#e3e2df',
+          300: '#d4d3d0',
           400: '#a1a1aa',
           500: '#71717a',
           600: '#52525b',
@@ -40,9 +52,20 @@ export default {
           800: '#27272a',
           900: '#18181b',
         },
+        accent: {
+          light: '#9EA8BE',
+          medium: '#718EBC',
+          dark: '#4970A5',
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', 'sans-serif'],
+        mono: ['Roboto Mono', 'monospace'],
+      },
+      fontWeight: {
+        heading: '600',
+        subheading: '500',
+        body: '300',
       },
     },
   },
