@@ -1,5 +1,6 @@
-/* Import Futura PT font */
+/* Import fonts with fallbacks */
 @import url('https://fonts.cdnfonts.com/css/futura-pt');
+@import url('https://fonts.googleapis.com/css2?family=Futura:wght@300;400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -17,27 +18,47 @@ body {
 }
 
 @layer base {
-  /* Headings - Uppercase with letter-spacing */
-  h1 {
+  /* All Headings - Futura BK BT Book ALL CAPS */
+  h1, h2, h3, h4, h5, h6 {
     font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
     text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+  }
+
+  /* Main headings get slightly more weight for hierarchy */
+  h1 {
     font-weight: 600;
     letter-spacing: 0.05em;
   }
 
-  h2, h3, h4, h5, h6 {
+  /* Body Copy - Futura LT Light Sentence Case */
+  body, p, span, div, a, button, input, textarea, li, td, th {
+    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
+    font-weight: 300;
+    text-transform: none;
+  }
+
+  /* Navigation and UI elements - Futura BK BT Book */
+  nav, .nav-item, .button-text {
     font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
     text-transform: uppercase;
     font-weight: 500;
     letter-spacing: 0.025em;
   }
 
-  /* Labels - Uppercase styling */
-  label {
+  /* Form labels and small text - Futura BK BT Book */
+  label, .text-sm, .text-xs {
     font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
     text-transform: uppercase;
     font-weight: 500;
     letter-spacing: 0.025em;
+  }
+
+  /* Preserve sentence case for specific elements */
+  .sentence-case {
+    text-transform: none;
+    font-weight: 300;
   }
 }
 
@@ -56,9 +77,10 @@ body {
     letter-spacing: 0.025em;
   }
 
-  .sentence-case {
-    text-transform: none;
+  .font-body {
+    font-family: 'Futura PT', 'Futura', 'Avenir', 'Helvetica Neue', sans-serif;
     font-weight: 300;
+    text-transform: none;
   }
 }
 
