@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Flame, Zap, Info, Loader2, TrendingUp, Percent, DollarSign, Thermometer, RefreshCw, Pencil, Gauge, ChevronDown } from 'lucide-react'
+import { Flame, Zap, Info, Loader2, TrendingUp, Percent, DollarSign, Thermometer, RefreshCw, Pencil, Gauge, ChevronDown, BookOpen } from 'lucide-react'
 
 import InputField from '../components/InputField'
 import SelectField from '../components/SelectField'
@@ -1003,16 +1003,16 @@ export default function HashrateHeating() {
       const bp = parseFloat(btcPriceOverride)
       if (bp > 0) return (effectiveHashvalue * bp) / 1e8
     }
-    // Use Braiins hashprice directly when available
+    // Use calculated hashprice when available (apply currency conversion)
     if (braiinsData?.hashprice) {
-      return braiinsData.hashprice
+      return braiinsData.hashprice * currencyMultiplier
     }
     // Fallback: calculate from btcPrice and hashvalue
     if (effectiveBtcPrice && effectiveHashvalue) {
       return (effectiveHashvalue * effectiveBtcPrice) / 1e8
     }
     return null
-  }, [hashpriceOverride, btcPriceOverride, braiinsData, effectiveHashvalue, effectiveBtcPrice])
+  }, [hashpriceOverride, btcPriceOverride, braiinsData, effectiveHashvalue, effectiveBtcPrice, currencyMultiplier])
 
   const networkMetrics = useMemo(() => {
     if (!btcMetrics || !effectiveHashvalue) return null
@@ -1291,11 +1291,22 @@ export default function HashrateHeating() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-surface-100">Hashrate Heating</h1>
-        <p className="text-sm sm:text-base text-surface-600 dark:text-surface-400 mt-1">
-          Calculate the economic efficiency of heating with Bitcoin miners
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-surface-900 dark:text-surface-100">Hashrate Heating</h1>
+          <p className="text-sm sm:text-base text-surface-600 dark:text-surface-400 mt-1">
+            Calculate the economic efficiency of heating with Bitcoin miners
+          </p>
+        </div>
+        <a
+          href="https://docs.exergyheat.com/calculators/hashrate-heating.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-colors self-start"
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>Documentation</span>
+        </a>
       </div>
 
       {/* Bitcoin Data Header */}
