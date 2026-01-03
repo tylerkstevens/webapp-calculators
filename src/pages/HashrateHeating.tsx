@@ -574,7 +574,7 @@ function MetricCard({
 
   return (
     <div
-      className={`rounded-xl border p-3 sm:p-5 min-h-[120px] sm:min-h-[140px] flex flex-col ${bgColors[variant]} ${expandable ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      className={`rounded-xl border p-3 sm:p-5 min-h-[120px] sm:min-h-[140px] flex flex-col shadow-lg ${bgColors[variant]} ${expandable ? 'cursor-pointer hover:shadow-xl transition-shadow' : ''}`}
       onClick={expandable ? onToggle : undefined}
     >
       <div className="flex items-start justify-between mb-1.5 sm:mb-2">
@@ -1310,7 +1310,7 @@ export default function HashrateHeating() {
       </div>
 
       {/* Bitcoin Data Header */}
-      <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-3 sm:p-4">
+      <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-3 sm:p-4 shadow-lg">
         {loadingBtc ? (
           <div className="flex items-center justify-center gap-2 py-4">
             <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
@@ -1475,7 +1475,7 @@ export default function HashrateHeating() {
       </div>
 
       {/* Input Strip */}
-      <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4 sm:p-6">
+      <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4 sm:p-6 shadow-lg">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {/* Location Selection */}
           <div>
@@ -1850,7 +1850,7 @@ export default function HashrateHeating() {
             : 'loss'
 
         return (
-          <div className={`rounded-xl p-3 sm:p-4 ${
+          <div className={`rounded-xl p-3 sm:p-4 shadow-lg ${
             displayStatus === 'profitable'
               ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
               : displayStatus === 'subsidized'

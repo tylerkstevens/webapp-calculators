@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
-import { Flame, ArrowRight, MessageCircle, BookOpen, Github } from 'lucide-react'
+import { Flame, Sun, ArrowRight, MessageCircle, BookOpen, Github } from 'lucide-react'
 
-// Active calculators (Phase 1)
+// Active calculators
 const calculators = [
   {
     path: '/hashrate',
@@ -10,32 +10,14 @@ const calculators = [
     icon: Flame,
     color: 'bg-orange-500',
   },
+  {
+    path: '/solar',
+    title: 'Solar Monetization Calculator',
+    description: 'Estimate bitcoin mining revenue from your solar PV system. Enter your system size or actual production data to see annual BTC earnings, monthly breakdowns, and compare mining revenue to net metering credits.',
+    icon: Sun,
+    color: 'bg-yellow-500',
+  },
 ]
-
-// Hidden for now - Phase 2+
-// const futureCalculators = [
-//   {
-//     path: '/solar',
-//     title: 'Solar Mining',
-//     description: 'Estimate Bitcoin mining potential from your solar system.',
-//     icon: Sun,
-//     color: 'bg-yellow-500',
-//   },
-//   {
-//     path: '/combined',
-//     title: 'Heat + Solar',
-//     description: 'Combined analysis for buildings with both heating needs and solar production.',
-//     icon: Zap,
-//     color: 'bg-blue-500',
-//   },
-//   {
-//     path: '/audit',
-//     title: 'Exergy Audit',
-//     description: 'Comprehensive energy analysis with miner sizing recommendations.',
-//     icon: ClipboardList,
-//     color: 'bg-purple-500',
-//   },
-// ]
 
 export default function Home() {
   return (
@@ -50,30 +32,30 @@ export default function Home() {
         </p>
       </div>
 
-      {/* Calculator Card - Single prominent card */}
-      <div className="max-w-2xl mx-auto">
+      {/* Calculator Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
         {calculators.map((calc) => {
           const Icon = calc.icon
           return (
             <Link
               key={calc.path}
               to={calc.path}
-              className="group block bg-white dark:bg-surface-800 rounded-xl p-6 sm:p-8 shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300"
+              className="group block bg-white dark:bg-surface-800 rounded-xl p-6 shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300"
             >
               <div className="flex items-center gap-4 mb-4">
-                <div className={`${calc.color} w-12 h-12 sm:w-14 sm:h-14 rounded-lg flex items-center justify-center`}>
-                  <Icon className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                <div className={`${calc.color} w-12 h-12 rounded-lg flex items-center justify-center`}>
+                  <Icon className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-xl sm:text-2xl font-semibold text-surface-900 dark:text-surface-100 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                <h2 className="text-lg sm:text-xl font-semibold text-surface-900 dark:text-surface-100 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                   {calc.title}
                 </h2>
               </div>
-              <p className="text-surface-600 dark:text-surface-400 text-sm sm:text-base mb-4">
+              <p className="text-surface-600 dark:text-surface-400 text-sm mb-4">
                 {calc.description}
               </p>
-              <div className="flex items-center text-primary-600 dark:text-primary-400 font-medium text-sm sm:text-base">
+              <div className="flex items-center text-primary-600 dark:text-primary-400 font-medium text-sm">
                 <span>Open Calculator</span>
-                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
               </div>
             </Link>
           )

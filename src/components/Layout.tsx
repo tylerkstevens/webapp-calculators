@@ -1,16 +1,11 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { Flame, Home, Calculator, Github, Mail, MapPin } from 'lucide-react'
-// Hidden for now - Phase 2+
-// import { Sun, Zap, ClipboardList } from 'lucide-react'
+import { Flame, Home, Calculator, Github, Mail, MapPin, Sun } from 'lucide-react'
 import MainNavbar from './MainNavbar'
 
 const navItems = [
   { path: '/', label: 'Home', shortLabel: 'Home', icon: Home },
   { path: '/hashrate', label: 'Hashrate Heating', shortLabel: 'Heating', icon: Flame },
-  // Hidden for now - Phase 2+
-  // { path: '/solar', label: 'Solar Mining', shortLabel: 'Solar', icon: Sun },
-  // { path: '/combined', label: 'Heat + Solar', shortLabel: 'Combined', icon: Zap },
-  // { path: '/audit', label: 'Exergy Audit', shortLabel: 'Audit', icon: ClipboardList },
+  { path: '/solar', label: 'Solar Monetization', shortLabel: 'Solar', icon: Sun },
 ]
 
 export default function Layout() {
