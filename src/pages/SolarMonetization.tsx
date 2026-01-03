@@ -27,6 +27,41 @@ import { getBraiinsData, BraiinsMetrics } from '../api/bitcoin'
 // ============================================================================
 
 type InputMode = 'estimate' | 'production' | 'excess'
+type CompensationType = 'credits' | 'netBilling' | 'cashOut'
+
+// ============================================================================
+// Constants - Compensation Types
+// ============================================================================
+
+const COMPENSATION_TYPES: Record<CompensationType, {
+  label: string
+  icon: string
+  defaultRate: string
+  shortDesc: string
+  tooltip: string
+}> = {
+  credits: {
+    label: 'Bill Credits',
+    icon: '💳',
+    defaultRate: '0.12',
+    shortDesc: '~12¢/kWh',
+    tooltip: 'Each kWh exported = 1 kWh credit on your bill. Credits offset future electricity purchases at full retail rate. Best value if you use all your credits within the year.'
+  },
+  netBilling: {
+    label: 'Net Billing',
+    icon: '📊',
+    defaultRate: '0.05',
+    shortDesc: '~5¢/kWh',
+    tooltip: "Your utility pays their 'avoided cost' rate — what they'd pay a power plant. Common in CA (NEM 3.0), AZ, ID, AR. Usually 30-50% of retail rate."
+  },
+  cashOut: {
+    label: 'Annual Cash-Out',
+    icon: '💵',
+    defaultRate: '0.02',
+    shortDesc: '~2¢/kWh',
+    tooltip: 'Credits roll over monthly, but excess at year-end is paid out at a much lower rate (often 1-3¢/kWh). Common with Xcel (CO), TVA, and many utilities.'
+  }
+}
 
 // ============================================================================
 // Component
@@ -61,7 +96,8 @@ export default function SolarMonetization() {
   const [systemSizeKw, setSystemSizeKw] = useState('10')
   const [annualProductionKwh, setAnnualProductionKwh] = useState('')
   const [excessKwh, setExcessKwh] = useState('')
-  const [netMeteringRate, setNetMeteringRate] = useState('0.08')
+  const [compensationType, setCompensationType] = useState<CompensationType>('netBilling')
+  const [netMeteringRate, setNetMeteringRate] = useState('0.05') // Net billing default
 
   // Data entry method toggle (for production/excess modes)
   const [dataEntryMethod, setDataEntryMethod] = useState<'annual' | 'monthly'>('annual')
@@ -168,6 +204,12 @@ export default function SolarMonetization() {
   // Check if user has any overrides active
   const hasOverrides = btcPriceOverride !== '' || hashvalueOverride !== '' ||
                        hashpriceOverride !== '' || networkHashrateOverride !== ''
+
+  // Compensation type handler
+  const handleCompensationTypeChange = (type: CompensationType) => {
+    setCompensationType(type)
+    setNetMeteringRate(COMPENSATION_TYPES[type].defaultRate)
+  }
 
   // ============================================================================
   // Two-Knob Calculation Model
@@ -826,19 +868,60 @@ export default function SolarMonetization() {
             </div>
           )}
 
-          {/* Net Metering Rate (Mode 3) */}
-          {inputMode === 'excess' && (
-            <InputField
-              label="Net Metering Rate"
-              type="number"
-              value={netMeteringRate}
-              onChange={setNetMeteringRate}
-              prefix="$"
-              suffix="/kWh"
-              helpText="What utility pays you"
-            />
-          )}
         </div>
+
+        {/* Compensation Type Quick Select (only for excess mode) */}
+        {inputMode === 'excess' && (
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <label className="text-sm font-medium text-surface-700 dark:text-surface-300">
+                How does your utility compensate for excess solar?
+              </label>
+            </div>
+
+            {/* Quick Select Buttons */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {(Object.entries(COMPENSATION_TYPES) as [CompensationType, typeof COMPENSATION_TYPES.credits][]).map(([type, config]) => (
+                <button
+                  key={type}
+                  onClick={() => handleCompensationTypeChange(type)}
+                  className={`flex flex-col items-center px-4 py-2.5 rounded-lg text-sm transition-colors ${
+                    compensationType === type
+                      ? 'bg-green-500 text-white'
+                      : 'bg-surface-100 dark:bg-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-200 dark:hover:bg-surface-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>{config.icon}</span>
+                    <span className="font-medium">{config.label}</span>
+                    <SmartTooltip content={config.tooltip} />
+                  </div>
+                  <span className={`text-xs mt-0.5 ${compensationType === type ? 'text-white/80' : 'text-surface-500'}`}>
+                    {config.shortDesc}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Rate Input (always visible and editable) */}
+            <div className="max-w-xs">
+              <div className="flex items-center gap-1 mb-1">
+                <label className="text-sm font-medium text-surface-700 dark:text-surface-300">
+                  Your Rate
+                </label>
+                <SmartTooltip content="Find this on your utility bill under 'Export Credit Rate', 'Net Metering Rate', or 'Avoided Cost'. Contact your utility if you're unsure of your exact rate." />
+              </div>
+              <InputField
+                label=""
+                type="number"
+                value={netMeteringRate}
+                onChange={setNetMeteringRate}
+                prefix="$"
+                suffix="/kWh"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Monthly Production Grid (only for production mode with monthly entry) */}
         {inputMode === 'production' && dataEntryMethod === 'monthly' && (
@@ -1111,7 +1194,11 @@ export default function SolarMonetization() {
           <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-6 shadow-lg border border-green-200 dark:border-green-800">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div>
-                <div className="text-sm text-surface-500 dark:text-surface-400 mb-1">Net Metering Credits</div>
+                <div className="text-sm text-surface-500 dark:text-surface-400 mb-1">
+                  {compensationType === 'credits' ? 'Bill Credit Value' :
+                   compensationType === 'cashOut' ? 'Cash-Out Value' :
+                   'Net Billing Value'}
+                </div>
                 <div className="text-2xl font-bold text-surface-700 dark:text-surface-300">
                   {formatUsd(netMeteringResult.netMeteringRevenue)}/year
                 </div>
