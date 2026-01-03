@@ -1,23 +1,6 @@
 import { Link } from 'react-router-dom'
-import { Flame, Sun, ArrowRight, MessageCircle, BookOpen, Github } from 'lucide-react'
-
-// Active calculators
-const calculators = [
-  {
-    path: '/hashrate',
-    title: 'Hashrate Heating Calculator',
-    description: 'Calculate your economic efficiency (COPe) with live BTC and network data. Compare hashrate heating costs vs natural gas, propane, oil, and heat pumps. See your heating subsidy %, daily BTC earnings, and explore a state-by-state US map showing where mining-powered heat makes the most sense.',
-    icon: Flame,
-    color: 'bg-orange-500',
-  },
-  {
-    path: '/solar',
-    title: 'Solar Monetization Calculator',
-    description: 'Estimate bitcoin mining revenue from your solar PV system. Enter your system size or actual production data to see annual BTC earnings, monthly breakdowns, and compare mining revenue to net metering credits.',
-    icon: Sun,
-    color: 'bg-yellow-500',
-  },
-]
+import { ArrowRight } from 'lucide-react'
+import { calculators, externalLinks, externalLinkClass } from '../data/calculators'
 
 export default function Home() {
   return (
@@ -72,33 +55,21 @@ export default function Home() {
           every watt of electricity becomes heat, plus you earn bitcoin.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 max-w-3xl mx-auto">
-          <a
-            href="https://support.exergyheat.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center gap-3 p-6 sm:p-8 rounded-xl bg-white dark:bg-surface-800 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 text-center"
-          >
-            <MessageCircle className="w-8 h-8 text-primary-600 dark:text-primary-400" />
-            <span className="text-sm sm:text-base font-medium text-surface-700 dark:text-surface-300">Community & Support Forum</span>
-          </a>
-          <a
-            href="https://docs.exergyheat.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center gap-3 p-6 sm:p-8 rounded-xl bg-white dark:bg-surface-800 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 text-center"
-          >
-            <BookOpen className="w-8 h-8 text-primary-600 dark:text-primary-400" />
-            <span className="text-sm sm:text-base font-medium text-surface-700 dark:text-surface-300">Calculator Documentation</span>
-          </a>
-          <a
-            href="https://github.com/exergyheat"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center gap-3 p-6 sm:p-8 rounded-xl bg-white dark:bg-surface-800 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 text-center"
-          >
-            <Github className="w-8 h-8 text-primary-600 dark:text-primary-400" />
-            <span className="text-sm sm:text-base font-medium text-surface-700 dark:text-surface-300">Github Repository</span>
-          </a>
+          {externalLinks.map((link) => {
+            const Icon = link.icon
+            return (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={externalLinkClass}
+              >
+                <Icon className="w-8 h-8 text-primary-600 dark:text-primary-400" />
+                <span className="text-sm sm:text-base font-medium text-surface-700 dark:text-surface-300">{link.label}</span>
+              </a>
+            )
+          })}
         </div>
       </div>
     </div>
