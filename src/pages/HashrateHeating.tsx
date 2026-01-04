@@ -5,6 +5,8 @@ import InputField from '../components/InputField'
 import SelectField from '../components/SelectField'
 import StateHeatMap from '../components/StateHeatMap'
 import SmartTooltip from '../components/SmartTooltip'
+import PdfReportButton from '../components/PdfReportButton'
+import type { HashrateHeatingReportData, PdfChartData, PdfStateRanking, PdfMiniRanking } from '../pdf/types'
 
 import {
   calculateCOPe,
@@ -24,6 +26,7 @@ import {
 import { getBraiinsData, BraiinsMetrics } from '../api/bitcoin'
 import {
   Country,
+  COUNTRIES,
   getRegionsList,
   getRegionPrices,
   getDefaultFuelRate,
@@ -1285,6 +1288,348 @@ export default function HashrateHeating() {
   }, [btcMetrics, subsidyChartExpanded, subsidyChartXAxis, copeChartXAxisConfig, calculateCOPeAtX, electricityRateNum, minerEfficiency, networkMetrics])
 
   // ============================================================================
+  // PDF Report Data Generation
+  // ============================================================================
+
+  const pdfReportData = useMemo((): HashrateHeatingReportData | null => {
+    if (!copeResult || !btcMetrics || !arbitrageResult) return null
+
+    const fuelSpec = getFuelSpecs(fuelType, selectedCountry)
+    const minerName = minerType === 'custom'
+      ? 'Custom Miner'
+      : MINER_PRESETS[parseInt(minerType, 10)]?.name || 'Custom Miner'
+
+    // Generate chart data for all x-axis variations
+    const generateSavingsChartData = (
+      xAxis: 'electricity' | 'fuel' | 'efficiency' | 'hashprice'
+    ): PdfChartData => {
+      const configs: Record<string, { min: number; max: number; unit: string; label: string; caption: string }> = {
+        electricity: { min: 0.05, max: 0.25, unit: '$/kWh', label: 'Electricity Rate', caption: 'Lower electricity rates increase savings.' },
+        fuel: { min: Math.max(1, fuelRateNum * 0.5), max: fuelRateNum * 2, unit: `$/${fuelSpec.unit}`, label: `${fuelSpec.label} Rate`, caption: 'Higher fuel prices make hashrate heating more attractive.' },
+        efficiency: { min: 10, max: 45, unit: 'J/TH', label: 'Miner Efficiency', caption: 'More efficient miners (lower J/TH) earn more.' },
+        hashprice: { min: 0.02, max: 0.10, unit: '$/TH/d', label: 'Hashprice', caption: 'Hashprice reflects BTC price & difficulty.' },
+      }
+      const config = configs[xAxis]
+      const points: { x: number; y: number }[] = []
+      const steps = 8
+
+      for (let i = 0; i <= steps; i++) {
+        const x = config.min + (config.max - config.min) * (i / steps)
+        const savings = calculateSavingsAtX(x, xAxis)
+        points.push({ x, y: savings })
+      }
+
+      let currentX: number
+      let currentY: number
+      switch (xAxis) {
+        case 'electricity': currentX = electricityRateNum; break
+        case 'fuel': currentX = fuelRateNum; break
+        case 'efficiency': currentX = minerEfficiency; break
+        case 'hashprice': currentX = networkMetrics?.hashprice || 0.05; break
+        default: currentX = electricityRateNum
+      }
+      currentY = calculateSavingsAtX(currentX, xAxis)
+
+      return {
+        title: `vs ${config.label}`,
+        points,
+        currentX,
+        currentY,
+        xLabel: config.label,
+        yLabel: 'Savings %',
+        xUnit: config.unit,
+        yUnit: '%',
+        caption: config.caption,
+      }
+    }
+
+    const generateCopeChartData = (
+      xAxis: 'electricity' | 'efficiency' | 'hashprice',
+      metric: 'cope' | 'subsidy'
+    ): PdfChartData => {
+      const configs: Record<string, { min: number; max: number; unit: string; label: string }> = {
+        electricity: { min: 0.05, max: 0.25, unit: '$/kWh', label: 'Electricity Rate' },
+        efficiency: { min: 10, max: 45, unit: 'J/TH', label: 'Miner Efficiency' },
+        hashprice: { min: 0.02, max: 0.10, unit: '$/TH/d', label: 'Hashprice' },
+      }
+      const config = configs[xAxis]
+      const points: { x: number; y: number }[] = []
+      const steps = 8
+
+      for (let i = 0; i <= steps; i++) {
+        const x = config.min + (config.max - config.min) * (i / steps)
+        const result = calculateCOPeAtX(x, xAxis)
+        const y = metric === 'cope' ? Math.min(result.cope, 20) : result.subsidy * 100
+        points.push({ x, y })
+      }
+
+      let currentX: number
+      switch (xAxis) {
+        case 'electricity': currentX = electricityRateNum; break
+        case 'efficiency': currentX = minerEfficiency; break
+        case 'hashprice': currentX = networkMetrics?.hashprice || 0.05; break
+        default: currentX = electricityRateNum
+      }
+      const currentResult = calculateCOPeAtX(currentX, xAxis)
+      const currentY = metric === 'cope' ? Math.min(currentResult.cope, 20) : currentResult.subsidy * 100
+
+      return {
+        title: `${metric === 'cope' ? 'COPe' : 'Subsidy %'} vs ${config.label}`,
+        points,
+        currentX,
+        currentY,
+        xLabel: config.label,
+        yLabel: metric === 'cope' ? 'COPe' : 'Subsidy %',
+        xUnit: config.unit,
+        yUnit: metric === 'cope' ? '' : '%',
+        caption: metric === 'cope'
+          ? 'COPe approaches infinity as electricity rate nears break-even.'
+          : '100% subsidy = free heating, >100% = profit.',
+      }
+    }
+
+    // Generate state rankings
+    const countryData = COUNTRIES[selectedCountry]
+    const stateRankings: PdfStateRanking[] = []
+
+    Object.entries(countryData.regions).forEach(([abbr, regionInfo]) => {
+      const prices = regionInfo.prices
+      const elecRate = prices.electricity
+      const fuelRateRegion = getDefaultFuelRate(fuelType, prices, selectedCountry)
+
+      const copeRes = calculateCOPe(elecRate, miner, btcMetrics)
+      const arbRes = calculateArbitrage(
+        fuelType,
+        fuelRateRegion,
+        elecRate,
+        miner,
+        btcMetrics,
+        1500,
+        FUEL_SPECS[fuelType].typicalEfficiency
+      )
+
+      stateRankings.push({
+        rank: 0,
+        state: abbr,
+        electricityRate: elecRate,
+        savings: arbRes.savingsPercent,
+        cope: copeRes.COPe,
+        subsidy: copeRes.R * 100,
+      })
+    })
+
+    // Helper to build surrounding context for a metric
+    const buildSurroundingContext = (
+      sorted: PdfStateRanking[],
+      userValue: number,
+      getValue: (s: PdfStateRanking) => number
+    ): { surroundingStates: { rank: number; state: string; value: number; isUser?: boolean }[]; position: string } => {
+      // Find where user fits in the sorted list
+      let insertIndex = sorted.length // Default: user is at the bottom
+      for (let i = 0; i < sorted.length; i++) {
+        if (userValue > getValue(sorted[i])) {
+          insertIndex = i
+          break
+        }
+      }
+
+      // Build position text
+      let position: string
+      if (insertIndex === 0) {
+        position = 'above #1'
+      } else if (insertIndex >= sorted.length) {
+        position = `below #${sorted.length}`
+      } else {
+        position = `between #${insertIndex}-#${insertIndex + 1}`
+      }
+
+      // Get 2 states above and 2 below the user's position
+      const startIndex = Math.max(0, insertIndex - 2)
+      const endIndex = Math.min(sorted.length, insertIndex + 2)
+
+      const surroundingStates: { rank: number; state: string; value: number; isUser?: boolean }[] = []
+
+      // Add states before user
+      for (let i = startIndex; i < insertIndex && i < sorted.length; i++) {
+        surroundingStates.push({
+          rank: i + 1,
+          state: sorted[i].state,
+          value: getValue(sorted[i]),
+        })
+      }
+
+      // Add user
+      surroundingStates.push({
+        rank: 0, // Special marker for user
+        state: 'YOU',
+        value: userValue,
+        isUser: true,
+      })
+
+      // Add states after user
+      for (let i = insertIndex; i < endIndex && i < sorted.length; i++) {
+        surroundingStates.push({
+          rank: i + 1,
+          state: sorted[i].state,
+          value: getValue(sorted[i]),
+        })
+      }
+
+      return { surroundingStates, position }
+    }
+
+    // Create sorted arrays for each metric
+    const bySavings = [...stateRankings].sort((a, b) => b.savings - a.savings)
+    const byCope = [...stateRankings].sort((a, b) => b.cope - a.cope)
+    const bySubsidy = [...stateRankings].sort((a, b) => b.subsidy - a.subsidy)
+
+    // User values
+    const userSavings = arbitrageResult.savingsPercent
+    const userCope = copeResult.COPe
+    const userSubsidy = copeResult.R * 100
+
+    // Build mini rankings for each metric with surrounding context
+    const savingsContext = buildSurroundingContext(bySavings, userSavings, (s) => s.savings)
+    const copeContext = buildSurroundingContext(byCope, userCope, (s) => s.cope)
+    const subsidyContext = buildSurroundingContext(bySubsidy, userSubsidy, (s) => s.subsidy)
+
+    const miniRankings: PdfMiniRanking[] = [
+      {
+        metric: 'savings',
+        metricLabel: '% Savings',
+        unit: '%',
+        surroundingStates: savingsContext.surroundingStates,
+        userRank: { position: savingsContext.position, value: userSavings },
+      },
+      {
+        metric: 'cope',
+        metricLabel: 'COPe',
+        unit: '',
+        surroundingStates: copeContext.surroundingStates,
+        userRank: { position: copeContext.position, value: userCope },
+      },
+      {
+        metric: 'subsidy',
+        metricLabel: 'Subsidy %',
+        unit: '%',
+        surroundingStates: subsidyContext.surroundingStates,
+        userRank: { position: subsidyContext.position, value: userSubsidy },
+      },
+    ]
+
+    return {
+      generatedDate: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      location: selectedRegion ? `${selectedRegion}, ${selectedCountry}` : selectedCountry,
+      fuelType: fuelSpec.label,
+      description: `This report analyzes the economic viability of hashrate heating compared to traditional fuel sources at current market conditions. Analysis uses fixed bitcoin price and mining network metrics as a point-in-time snapshot. Results will vary with market fluctuations. Visit calc.exergyheat.com to explore different scenarios.`,
+      isProfitable: arbitrageResult.savingsPercent > 0,
+      summaryText: `Hashrate heating saves ${Math.abs(arbitrageResult.savingsPercent).toFixed(0)}% vs ${fuelSpec.label}. ${arbitrageResult.savingsPercent > 0 ? `At your electricity rate of ${currencySymbol}${electricityRate}/kWh, you could reduce annual heating costs significantly by switching to a bitcoin mining heater.` : `At your current electricity rate of ${currencySymbol}${electricityRate}/kWh, ${fuelSpec.label} heating is more economical. Consider hashrate heating if electricity rates drop or BTC price increases.`}`,
+
+      inputs: [
+        {
+          title: 'Bitcoin Network',
+          items: [
+            { label: 'BTC Price', value: `${currencySymbol}${effectiveBtcPrice?.toLocaleString() || 'N/A'}` },
+            { label: 'Hashprice', value: `${currencySymbol}${effectiveHashprice?.toFixed(4) || 'N/A'}/TH/d` },
+            { label: 'Network Hashrate', value: `${((effectiveNetworkHashrate || 0) / 1e6).toFixed(0)} EH/s` },
+          ],
+        },
+        {
+          title: 'Miner Specs',
+          items: [
+            { label: 'Model', value: minerName },
+            { label: 'Power', value: `${minerPower}W` },
+            { label: 'Hashrate', value: `${minerHashrate} TH/s` },
+            { label: 'Efficiency', value: `${minerEfficiency.toFixed(1)} J/TH` },
+          ],
+        },
+        {
+          title: 'Electricity',
+          items: [
+            { label: 'Rate', value: `${currencySymbol}${electricityRate}/kWh` },
+            { label: 'Location', value: selectedRegion ? `${selectedRegion}, ${selectedCountry}` : selectedCountry },
+          ],
+        },
+        {
+          title: 'Fuel Comparison',
+          items: [
+            { label: 'Type', value: fuelSpec.label },
+            { label: 'Rate', value: `${currencySymbol}${fuelRate}/${fuelSpec.unit}` },
+            { label: 'Efficiency', value: `${(parseFloat(fuelEfficiency) * 100).toFixed(0)}% AFUE` },
+          ],
+        },
+      ],
+
+      results: [
+        {
+          label: 'Effective Heat Cost',
+          value: `${currencySymbol}${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`,
+          explanation: 'Net cost per kWh after mining revenue offset.',
+          subValue: `${currencySymbol}${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`,
+        },
+        {
+          label: 'Break-even Rate',
+          value: `${currencySymbol}${copeResult.breakevenRate.toFixed(3)}/kWh`,
+          explanation: 'Max electricity rate for free heating.',
+        },
+        {
+          label: 'Heating Power',
+          value: `${(parseFloat(minerPower) * 3.412).toFixed(0)} BTU/h`,
+          explanation: '100% of electrical power converts to heat.',
+        },
+        {
+          label: `Savings vs ${fuelSpec.label}`,
+          value: `${arbitrageResult.savingsPercent >= 0 ? '+' : ''}${arbitrageResult.savingsPercent.toFixed(0)}%`,
+          explanation: 'Cost savings compared to fuel heating.',
+        },
+        {
+          label: 'COPe',
+          value: formatCOPe(copeResult.COPe),
+          explanation: 'Economic COP. Compare to heat pump ratings.',
+        },
+        {
+          label: 'Mining Subsidy',
+          value: `${Math.round(copeResult.R * 100)}%`,
+          explanation: '% of electricity offset by mining. 100% = free.',
+        },
+      ],
+
+      savingsCharts: [
+        generateSavingsChartData('electricity'),
+        generateSavingsChartData('fuel'),
+        generateSavingsChartData('efficiency'),
+        generateSavingsChartData('hashprice'),
+      ],
+
+      copeCharts: [
+        generateCopeChartData('electricity', 'cope'),
+        generateCopeChartData('efficiency', 'cope'),
+        generateCopeChartData('hashprice', 'cope'),
+      ],
+
+      subsidyCharts: [
+        generateCopeChartData('electricity', 'subsidy'),
+        generateCopeChartData('efficiency', 'subsidy'),
+        generateCopeChartData('hashprice', 'subsidy'),
+      ],
+
+      miniRankings,
+    }
+  }, [
+    copeResult, btcMetrics, arbitrageResult, fuelType, selectedCountry, minerType,
+    fuelRateNum, electricityRateNum, minerEfficiency, networkMetrics, miner,
+    effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, minerPower,
+    minerHashrate, electricityRate, selectedRegion, fuelRate, fuelEfficiency,
+    currencySymbol, calculateSavingsAtX, calculateCOPeAtX
+  ])
+
+  // ============================================================================
   // Render
   // ============================================================================
 
@@ -1721,9 +2066,23 @@ export default function HashrateHeating() {
         </div>
       </div>
 
-      {/* Results Grid */}
+      {/* Results Section */}
       {copeResult && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div id="hashrate-results" className="space-y-4">
+          {/* Results Header */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-surface-900 dark:text-surface-100">
+              Heating Economics Results
+            </h2>
+            <PdfReportButton
+              reportType="hashrate"
+              reportData={pdfReportData}
+              filename="hashrate-heating-report.pdf"
+            />
+          </div>
+
+          {/* Results Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {/* Effective Heat Cost */}
           <MetricCard
             icon={DollarSign}
@@ -1834,11 +2193,10 @@ export default function HashrateHeating() {
               />
             )}
           </MetricCard>
-        </div>
-      )}
+          </div>
 
-      {/* Status Banner */}
-      {copeResult && (() => {
+          {/* Status Banner */}
+          {(() => {
         // Determine status based on savings vs traditional fuel
         // profitable: R >= 1 (free/paid heating)
         // subsidized: savingsPercent > 0 (hashrate heating is cheaper than traditional fuel)
@@ -1904,25 +2262,25 @@ export default function HashrateHeating() {
             )}
           </div>
         )
-      })()}
+          })()}
 
-      {/* Region Comparison Map - Full width results section */}
-      {copeResult && (
-        <StateHeatMap
-          country={selectedCountry}
-          btcMetrics={btcMetrics}
-          selectedFuelType={fuelType}
-          onFuelTypeChange={(fuel) => setFuelType(fuel)}
-          onRegionClick={(code) => setSelectedRegion(code)}
-          minerPowerW={miner.powerW}
-          minerHashrateTH={miner.hashrateTH}
-          selectedRegion={selectedRegion}
-          userElectricityRate={electricityRateNum}
-          userFuelRate={fuelRateNum}
-          userFuelEfficiency={fuelEfficiencyNum}
-          defaultElectricityRate={defaultRegionRates.electricity}
-          defaultFuelRate={defaultRegionRates.fuel}
-        />
+          {/* Region Comparison Map */}
+          <StateHeatMap
+            country={selectedCountry}
+            btcMetrics={btcMetrics}
+            selectedFuelType={fuelType}
+            onFuelTypeChange={(fuel) => setFuelType(fuel)}
+            onRegionClick={(code) => setSelectedRegion(code)}
+            minerPowerW={miner.powerW}
+            minerHashrateTH={miner.hashrateTH}
+            selectedRegion={selectedRegion}
+            userElectricityRate={electricityRateNum}
+            userFuelRate={fuelRateNum}
+            userFuelEfficiency={fuelEfficiencyNum}
+            defaultElectricityRate={defaultRegionRates.electricity}
+            defaultFuelRate={defaultRegionRates.fuel}
+          />
+        </div>
       )}
     </div>
   )
