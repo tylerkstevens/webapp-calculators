@@ -1,10 +1,27 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { calculators, externalLinks, externalLinkClass } from '../data/calculators'
+import SEO from '../components/SEO'
 
 export default function Home() {
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Exergy Calculators - Bitcoin Mining Economics',
+    description: 'Free calculators for Bitcoin mining economics: hashrate heating and solar monetization analysis.',
+    url: 'https://webapp-calculators.example.com',
+  }
+
   return (
     <div className="space-y-8 sm:space-y-12">
+      <SEO
+        title="Bitcoin Mining Calculators"
+        description="Free calculators for Bitcoin mining economics. Analyze hashrate heating efficiency (COPe) and solar mining profitability with real-time BTC network data."
+        keywords="bitcoin mining calculator, hashrate heating, solar mining, COPe calculator, bitcoin economics, mining profitability"
+        canonical="/"
+        structuredData={structuredData}
+      />
+
       {/* Hero Section */}
       <div className="text-center max-w-3xl mx-auto px-2">
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-surface-900 dark:text-surface-100 mb-3 sm:mb-4">

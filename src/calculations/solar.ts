@@ -17,12 +17,9 @@ export interface SolarMiningResult {
   monthlyProductionKwh: number[]
   avgSunHoursPerDay: number
 
-  // Mining capacity
-  maxMiners: number
-  actualMiners: number
+  // Mining capacity (assumes 100% solar utilization)
   totalPowerW: number
   totalHashrateTH: number
-  utilizationPercent: number   // % of solar capacity used for mining
 
   // Mining revenue
   dailyBtc: number
@@ -161,9 +158,8 @@ export function calculateSunHours(
  * @param monthlyProductionKwh - Monthly production breakdown (12 values)
  * @param monthlySunHours - Monthly sun hours (12 values)
  * @param miner - Miner specifications
- * @param minerQuantity - Number of miners to use
  * @param btcMetrics - Current BTC network metrics
- * @returns Complete solar mining calculation results
+ * @returns Complete solar mining calculation results (assumes 100% solar utilization)
  */
 export function calculateSolarMining(
   systemCapacityKw: number,
@@ -171,18 +167,16 @@ export function calculateSolarMining(
   monthlyProductionKwh: number[],
   monthlySunHours: number[],
   miner: MinerSpec,
-  minerQuantity: number,
   btcMetrics: BTCMetrics
 ): SolarMiningResult {
   // Calculate sun hours from production if not provided
   const avgSunHoursPerDay = calculateSunHours(annualProductionKwh, systemCapacityKw)
 
-  // Mining capacity
-  const maxMiners = calculateMaxMiners(systemCapacityKw, miner.powerW)
-  const actualMiners = Math.min(minerQuantity, maxMiners)
-  const totalPowerW = actualMiners * miner.powerW
-  const totalHashrateTH = actualMiners * miner.hashrateTH
-  const utilizationPercent = (totalPowerW / (systemCapacityKw * 1000)) * 100
+  // Mining capacity - assumes 100% solar utilization
+  // Calculate total hashrate based on miner efficiency and all available solar power
+  // totalPowerW represents the equivalent mining power at the miner's efficiency
+  const totalPowerW = systemCapacityKw * 1000 // Use full system capacity
+  const totalHashrateTH = (totalPowerW / miner.powerW) * miner.hashrateTH
 
   // Daily mining revenue
   const dailyBtc = calculateDailySolarBtc(totalHashrateTH, avgSunHoursPerDay, btcMetrics)
@@ -198,21 +192,16 @@ export function calculateSolarMining(
   const monthlyBtc = annualBtc / 12
   const monthlyUsd = annualUsd / 12
 
-  // Efficiency metrics
-  // How much kWh actually used for mining annually
-  const annualMiningKwh = (totalPowerW / 1000) * avgSunHoursPerDay * 365
-  const effectiveRevenuePerKwh = annualMiningKwh > 0 ? annualUsd / annualMiningKwh : 0
-  const btcPerKwh = annualMiningKwh > 0 ? (annualBtc / annualMiningKwh) * 1e8 : 0 // in sats
+  // Efficiency metrics - based on actual solar production
+  const effectiveRevenuePerKwh = annualProductionKwh > 0 ? annualUsd / annualProductionKwh : 0
+  const btcPerKwh = annualProductionKwh > 0 ? (annualBtc / annualProductionKwh) * 1e8 : 0 // in sats
 
   return {
     annualProductionKwh,
     monthlyProductionKwh,
     avgSunHoursPerDay,
-    maxMiners,
-    actualMiners,
     totalPowerW,
     totalHashrateTH,
-    utilizationPercent,
     dailyBtc,
     monthlyBtc,
     annualBtc,

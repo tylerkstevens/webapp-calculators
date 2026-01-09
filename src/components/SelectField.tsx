@@ -1,3 +1,5 @@
+import SmartTooltip from './SmartTooltip'
+
 interface Option {
   value: string
   label: string
@@ -9,6 +11,7 @@ interface SelectFieldProps {
   onChange: (value: string) => void
   options: Option[]
   helpText?: string
+  tooltip?: string
 }
 
 export default function SelectField({
@@ -17,12 +20,16 @@ export default function SelectField({
   onChange,
   options,
   helpText,
+  tooltip,
 }: SelectFieldProps) {
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-surface-700 dark:text-surface-300">
-        {label}
-      </label>
+      <div className="flex items-center gap-1">
+        <label className="block text-sm font-medium text-surface-700 dark:text-surface-300">
+          {label}
+        </label>
+        {tooltip && <SmartTooltip content={tooltip} />}
+      </div>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}

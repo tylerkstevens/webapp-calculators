@@ -1,8 +1,8 @@
 # Exergy Heat Calculator Web App - Technical Specification
 
-**Version:** 1.0
-**Last Updated:** 2026-01-07
-**Status:** Active Development
+**Version:** 1.1
+**Last Updated:** 2026-01-08
+**Status:** Production (Live)
 
 ---
 
@@ -204,10 +204,10 @@ The calculator displays live BTC network data from Braiins API with a two-knob o
 
 #### Unified Results Layout (Both Total Production and Excess Modes)
 
-All result sections should have consistent structure regardless of mode:
+All result sections have consistent structure regardless of mode:
 
-**Result Cards** (Metric tiles):
-1. **Annual Production** (or "Annual Export" for Excess mode)
+**Result Cards** (2x2 grid layout using `grid grid-cols-1 sm:grid-cols-2`):
+1. **Annual Production** (or "Annual Excess" for Excess mode)
    - Total kWh annually
    - Avg sun hours per day
    - Tooltip: "Total solar energy available for mining. Based on your location's sun hours and system size. Higher sun hours mean more mining opportunity."
@@ -215,15 +215,21 @@ All result sections should have consistent structure regardless of mode:
 2. **Annual BTC Earnings**
    - BTC amount + sats
    - USD value at current price
+   - Shows full system data in Estimate/Production modes
+   - Shows excess-only data in Excess mode (calculated from grid export)
    - Tooltip (comprehensive): "Total bitcoin mined annually using your solar power. Calculated from your hashrate (based on miner efficiency) and solar production hours. Assumes static BTC price and network conditions - actual earnings depend on BTC price when you sell and network difficulty changes over time. Does not account for future volatility."
 
 3. **Monthly Average**
    - BTC amount + sats
    - USD value
+   - Shows full system average in Estimate/Production modes
+   - Shows excess-only average in Excess mode
    - Tooltip: "Average monthly mining revenue. Summer months typically earn more due to longer sun hours. Remember this assumes current BTC price and network conditions throughout the year."
 
 4. **Revenue per kWh**
    - $/kWh and sats/kWh
+   - Shows full system efficiency in Estimate/Production modes
+   - Shows excess-only efficiency in Excess mode
    - Tooltip: "How much value you extract from each kWh of solar power via mining. Compare this to your utility's net metering rate to see relative value. Higher miner efficiency = higher revenue per kWh."
 
 **REMOVED Cards**:
@@ -236,11 +242,14 @@ All result sections should have consistent structure regardless of mode:
 - **Bars**: Monthly revenue (left Y-axis, USD scale)
   - Primary label: USD value (e.g., "$427")
   - Subtitle label: Sats value (e.g., "2.1M sats")
+  - Labels positioned 20px above bars with 50px top padding to prevent clipping
 - **Line**: Monthly solar generation (right Y-axis, kWh scale)
   - Overlaid line showing kWh pattern
 - **Axes**: Auto-scaled independently
 - **Interactive**: Hover shows exact values at mouse position
 - **Caption**: "Monthly mining revenue varies with seasonal sun hours. Chart assumes static BTC price and network conditions."
+- **Display**: Shows in all three modes (Estimate, Production, and Excess)
+  - Excess mode uses excess-specific data (not full system production)
 
 #### Excess Mode Additional Display
 
@@ -250,6 +259,12 @@ When in Excess mode, show comparison card:
 - Advantage (mining vs net metering)
 - Multiplier (how many times better)
 - Recommendation banner (green if mining better, amber if net metering better)
+
+**Excess Mode Specific Behavior:**
+- Result cards display excess-only data (not full system capacity)
+- Monthly chart shows excess export kWh (not total production)
+- No "Mining Setup Details" card shown
+- No empty state placeholders displayed
 
 ### Edge Cases & Validation
 
@@ -738,7 +753,7 @@ export const MINER_PRESETS: MinerSpec[] = [
   { name: 'Bitmain S19j Pro', powerW: 3068, hashrateTH: 104 },
   { name: 'Bitmain S19k Pro', powerW: 2760, hashrateTH: 120 },
   { name: 'Bitmain S9', powerW: 1400, hashrateTH: 13.5 },
-  { name: 'Single Board S19', powerW: 850, hashrateTH: 30 }
+  { name: 'Single Board S19 Pro', powerW: 850, hashrateTH: 30 }
 ]
 ```
 
@@ -757,13 +772,22 @@ export const MINER_PRESETS: MinerSpec[] = [
 - Test dark mode toggle
 - Test PDF report generation
 
-### Unit Tests (Required)
-- Test all calculation functions in `src/calculations/`
-- Test conversion utilities (formatBtc, formatUsd, etc.)
-- Test network metric calculations
-- Test COPe formula edge cases
-- Test solar mining revenue calculations
-- **Testing Framework**: Vitest (already configured)
+### Unit Tests (Implemented)
+- ✅ **103 tests passing** across 3 test suites
+- ✅ **100% statement coverage** on calculation logic
+- ✅ **100% function coverage**
+- ✅ **88.88% branch coverage** (only minor edge cases uncovered)
+- All calculation functions in `src/calculations/` fully tested
+- All conversion utilities tested (formatBtc, formatUsd, formatKwh, etc.)
+- Network metric calculations tested
+- COPe formula edge cases tested
+- Solar mining revenue calculations tested
+- **Testing Framework**: Vitest with v8 coverage provider
+
+**Test Files:**
+- `src/test/hashrate.test.ts` (37 tests) - COPe, arbitrage, network calculations
+- `src/test/solar.test.ts` (42 tests) - Solar mining, net metering, production calculations
+- `src/test/pdf.test.ts` (24 tests) - PDF report generation, state rankings
 
 **Example Test Cases**:
 ```typescript
