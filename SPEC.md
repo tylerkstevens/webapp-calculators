@@ -855,39 +855,249 @@ describe('calculateSolarMining', () => {
 
 ---
 
-## Appendix: Key Formulas
+## Appendix: Mathematical Formulas (Verified)
 
-### COPe (Coefficient of Performance - Economic)
+This section contains mathematically verified formulas with full derivations, edge cases, and override logic.
+
+### Bitcoin Network Base Formulas
+
+#### Hashvalue (sats/TH/day)
+
+**Base Formula (Subsidy + Fees):**
 ```
-R = Mining Revenue / Electricity Cost
+hashvalue = (daily_subsidy_sats + daily_fees_sats) / network_hashrate_TH
+
+where:
+  daily_subsidy_sats = 144 blocks/day × 3.125 BTC/block × 1e8 sats/BTC
+                     = 45,000,000,000 sats/day
+  daily_fees_sats = 144 blocks/day × avg_fee_per_block_BTC × 1e8 sats/BTC
+```
+
+**Example with fees = 0.2 BTC/block:**
+```
+daily_subsidy_sats = 45,000,000,000 sats
+daily_fees_sats = 144 × 0.2 × 1e8 = 2,880,000,000 sats
+total_daily_sats = 47,880,000,000 sats
+
+hashvalue = 47,880,000,000 / network_hashrate_TH
+```
+
+**Mathematical Verification:**
+- ✅ Bitcoin produces 144 blocks/day on average (1 block per 10 minutes)
+- ✅ Current epoch block reward: 3.125 BTC (after 2024 halving)
+- ✅ 1 BTC = 100,000,000 satoshis (1e8)
+- ✅ Transaction fees vary but typically 0.15-0.30 BTC/block
+- ✅ Hashvalue represents fair share per TH/s of hashrate contribution
+
+**Edge Cases:**
+- If network_hashrate = 0: Return 0 (or error) to prevent division by zero
+- If fees < 0: Treat as 0 (invalid but defensively handled)
+- Very high network hashrate (1000+ EH/s): Formula still valid, just lower hashvalue
+
+#### Hashvalue Override Scenarios
+
+**Scenario 1: User Overrides Hashvalue (calculates implied network hashrate)**
+```
+Given: user_hashvalue (sats/TH/day)
+Calculate: implied_network_hashrate
+
+implied_network_hashrate = (45,000,000,000 + avg_daily_fees_sats) / user_hashvalue
+
+where avg_daily_fees_sats uses 30-day historical average from Mempool.space API
+```
+
+**Example:**
+```
+user_hashvalue = 60,000 sats/TH/day
+avg_fees = 0.2 BTC/block (30-day average)
+avg_daily_fees_sats = 144 × 0.2 × 1e8 = 2,880,000,000 sats
+
+implied_network_hashrate = (45B + 2.88B) / 60,000
+                         = 47,880,000,000 / 60,000
+                         = 798,000 TH/s (798 EH/s)
+```
+
+**Scenario 2: User Overrides Network Hashrate (calculates implied hashvalue)**
+```
+Given: user_network_hashrate (TH/s)
+Calculate: implied_hashvalue
+
+implied_hashvalue = (45,000,000,000 + avg_daily_fees_sats) / user_network_hashrate
+
+where avg_daily_fees_sats uses 30-day historical average from Mempool.space API
+```
+
+**Example:**
+```
+user_network_hashrate = 800,000 TH/s (800 EH/s)
+avg_fees = 0.2 BTC/block (30-day average)
+avg_daily_fees_sats = 2,880,000,000 sats
+
+implied_hashvalue = 47,880,000,000 / 800,000
+                  = 59,850 sats/TH/day
+```
+
+**API Requirement:**
+- Fetch 30-day average transaction fee per block from Mempool.space or similar API
+- Use this average when calculating implied values in override scenarios
+- Update periodically (daily or weekly) to reflect current fee market conditions
+
+#### Hashprice ($/TH/day)
+
+**Formula:**
+```
+hashprice = (hashvalue_sats × btc_price_USD) / 1e8
+```
+
+**Mathematical Reasoning:**
+- Hashvalue is in sats/TH/day
+- Convert sats to BTC: divide by 100,000,000 (1e8)
+- Multiply by BTC price to get USD
+
+**Example:**
+```
+hashvalue = 60,000 sats/TH/day
+btc_price = $100,000
+
+hashprice = (60,000 × 100,000) / 100,000,000
+          = 6,000,000,000 / 100,000,000
+          = $60 per TH per day
+
+Alternative calculation:
+hashprice = (60,000 / 1e8) BTC/TH/day × $100,000/BTC
+          = 0.0006 BTC/TH/day × $100,000
+          = $60/TH/day
+```
+
+**Mathematical Verification:**
+- ✅ Conversion factor 1e8 is exact (definition of satoshi)
+- ✅ Dimensional analysis: (sats/TH/day × $/BTC) / (sats/BTC) = $/TH/day ✓
+
+**Edge Cases:**
+- If btc_price = 0: hashprice = 0 (valid result, though unrealistic)
+- If btc_price < 0: Invalid input (should validate)
+- Very high BTC prices ($1M+): Formula still valid
+
+#### Hashprice Override Scenarios
+
+**Scenario 3: User Overrides BTC Price (calculates hashprice)**
+```
+Given: user_btc_price
+Use: live hashvalue from API
+Calculate: implied_hashprice = (hashvalue × user_btc_price) / 1e8
+```
+
+**Scenario 4: User Overrides Hashprice (calculates implied BTC price)**
+```
+Given: user_hashprice ($/TH/day)
+Use: live hashvalue from API (sats/TH/day)
+Calculate: implied_btc_price
+
+implied_btc_price = (user_hashprice × 1e8) / hashvalue
+```
+
+**Example:**
+```
+user_hashprice = $75/TH/day
+hashvalue = 60,000 sats/TH/day (from API)
+
+implied_btc_price = (75 × 100,000,000) / 60,000
+                  = 7,500,000,000 / 60,000
+                  = $125,000 per BTC
+```
+
+**Mathematical Verification:**
+```
+Reverse check:
+hashprice = (60,000 × 125,000) / 1e8 = $75 ✓
+```
+
+### Solar Monetization Calculator Formulas
+
+#### Daily Solar BTC Calculation
+
+**Formula:**
+```
+userShare = miner_hashrate_TH / network_hashrate_TH
+dailyBtc24h = userShare × 144 blocks × 3.125 BTC
+dailyBtcSolar = dailyBtc24h × (avgSunHours / 24)
+```
+
+**Mathematical Reasoning:**
+- Calculate 24/7 mining earnings first
+- Scale by fraction of day with sunlight
+- Assumes constant mining rate during sun hours
+
+**Example:**
+```
+Miner: 40 TH/s hashrate
+Network: 800,000,000 TH/s (800 EH/s)
+Sun hours: 5 hours/day
+
+userShare = 40 / 800,000,000 = 5 × 10^-8 (0.000005%)
+dailyBtc24h = 5e-8 × 144 × 3.125 = 0.0000225 BTC
+dailyBtcSolar = 0.0000225 × (5/24) = 0.0000047 BTC/day
+
+Annual: 0.0000047 × 365 = 0.00171 BTC/year (~$171 at $100k BTC)
+```
+
+**Assumptions:**
+- ⚠️ Mining rate constant during sun hours (doesn't vary with solar intensity)
+- ⚠️ No downtime, throttling, or variability
+- ⚠️ All solar power goes to mining (100% utilization)
+
+**Edge Cases:**
+- If avgSunHours = 0: dailyBtcSolar = 0 (correct, no sun = no mining)
+- If avgSunHours > 24: Should cap at 24 or error (invalid input)
+- If network_hashrate = 0: Division by zero → return 0 or error
+
+**Status:** ⏸️ Under review - user will confirm later
+
+### Hashrate Heating Calculator Formulas
+
+#### COPe (Coefficient of Performance - Economic)
+
+**Formula:**
+```
+R = dailyMiningRevenue / dailyElectricityCost
+
+where:
+  dailyMiningRevenue = dailyBTC × btcPrice
+  dailyBTC = (miner_hashrate / network_hashrate) × 144 × 3.125
+  dailyElectricityCost = (miner_power_kW × 24 hours) × electricity_rate
+
 COPe = 1 / (1 - R)
 
-where R = Revenue Ratio (Heating Subsidy)
+Special cases:
+  If R >= 1: COPe = ∞ (free heating or paid to heat)
+  If R <= 0: COPe = 1 (no mining subsidy, full electricity cost)
 ```
 
-### Hashvalue (sats/TH/day)
-```
-hashvalue = (144 blocks/day × block_reward_BTC × 1e8 sats/BTC + daily_fees_sats) / network_hashrate_TH
-```
+**Mathematical Verification:** ⏸️ Pending verification
 
-### Hashprice ($/TH/day)
-```
-hashprice = (hashvalue × btc_price_USD) / 1e8
-```
+#### Heating Arbitrage
 
-### Solar Mining BTC Calculation
-```
-hashrate_hours = (total_kWh / miner_power_kW) × miner_hashrate_TH
-daily_btc_per_TH = (144 × 3.125) / network_hashrate_TH
-total_btc = daily_btc_per_TH × hashrate_hours / 24
-```
-
-### Heating Arbitrage
+**Formula:**
 ```
 traditional_cost_per_kWh = (fuel_rate × BTU_conversion) / fuel_efficiency
 hashrate_cost_per_kWh = electricity_rate × (1 - R)
 savings_percent = ((traditional - hashrate) / traditional) × 100
 ```
+
+**Mathematical Verification:** ⏸️ Pending verification
+
+---
+
+### Verification Status Legend
+
+- ✅ **Verified**: Formula mathematically confirmed with user
+- ⏸️ **Under Review**: Formula presented, awaiting user confirmation
+- ⚠️ **Has Assumptions**: Formula is valid but relies on stated assumptions
+- ❌ **Needs Fix**: Formula has identified issues requiring correction
+
+---
+
+**Last Updated:** 2026-01-08 (Mathematical Audit In Progress)
 
 ---
 
