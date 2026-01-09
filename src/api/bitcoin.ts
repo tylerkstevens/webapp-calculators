@@ -129,74 +129,20 @@ export async function getBraiinsData(): Promise<BraiinsMetrics> {
 }
 
 // ============================================================================
-// Legacy API Functions (for backward compatibility)
-// ============================================================================
-
-/**
- * @deprecated Use getBraiinsData() instead
- */
-export async function getBitcoinPrice(): Promise<BitcoinPrice> {
-  try {
-    const data = await getBraiinsData()
-    return {
-      usd: data.btcPrice,
-      usd_24h_change: 0,
-    }
-  } catch (error) {
-    console.error('Error fetching Bitcoin price:', error)
-    return { usd: FALLBACK_DATA.btcPrice, usd_24h_change: 0 }
-  }
-}
-
-/**
- * @deprecated Use getBraiinsData() instead
- */
-export async function getNetworkStats(): Promise<NetworkStats> {
-  try {
-    const data = await getBraiinsData()
-    return {
-      difficulty: data.difficulty,
-      hashrate: data.networkHashrate,
-      blockReward: data.blockReward,
-    }
-  } catch (error) {
-    console.error('Error fetching network stats:', error)
-    return {
-      difficulty: FALLBACK_DATA.difficulty,
-      hashrate: FALLBACK_DATA.networkHashrate,
-      blockReward: FALLBACK_DATA.blockReward,
-    }
-  }
-}
-
-// ============================================================================
 // Transaction Fee Data
 // ============================================================================
 
 /**
- * Fetch 30-day average transaction fee rate from Mempool.space.
- * Returns average fees per block in BTC.
+ * Get average transaction fee rate for calculations.
+ * Returns conservative estimate of average fees per block in BTC.
  * Used for fee-aware override calculations.
+ *
+ * Note: Returns hardcoded value (0.2 BTC ≈ 6.4% of block reward) until
+ * proper historical fee data API is implemented.
  */
 export async function getAverageFeeRate(): Promise<number> {
-  try {
-    // Fetch fee estimates which includes historical data
-    // Mempool.space /v1/fees/recommended provides current fee estimates
-    // For historical average, we use a conservative estimate based on typical conditions
-    await axios.get(`${MEMPOOL_API}/fees/recommended`)
-
-    // Response contains: fastestFee, halfHourFee, hourFee, economyFee, minimumFee (all in sat/vB)
-    // A typical block is ~1.5 MB and transactions average ~250 vB
-    // ~6000 transactions per block, each paying varying fees
-    // Conservative estimate: 0.15-0.25 BTC in fees per block (5-8% of block reward)
-
-    // Use conservative middle estimate
-    return 0.2
-  } catch (error) {
-    console.error('Error fetching average fee rate:', error)
-    // Fallback: ~6.4% of block reward (0.2 BTC)
-    return 0.2
-  }
+  // Conservative estimate: 0.2 BTC in fees per block (5-8% of block reward)
+  return 0.2
 }
 
 // ============================================================================
