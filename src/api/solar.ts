@@ -277,35 +277,3 @@ function generateMonthlyEstimate(annualKwh: number): number[] {
 
   return monthlyFactors.map(factor => Math.round(annualKwh * factor))
 }
-
-/**
- * Calculate effective sun hours per day from production data.
- *
- * @param annualKwh - Annual production in kWh
- * @param systemCapacityKw - System size in kW
- * @returns Average sun hours per day
- */
-export function calculateSunHours(annualKwh: number, systemCapacityKw: number): number {
-  // sun_hours = annual_kwh / (system_kw * 365)
-  return annualKwh / (systemCapacityKw * 365)
-}
-
-/**
- * Calculate how many miners a solar system can support.
- *
- * @param systemCapacityKw - System size in kW
- * @param minerPowerW - Single miner power in watts
- * @returns Maximum number of miners
- */
-export function calculateMaxMiners(systemCapacityKw: number, minerPowerW: number): number {
-  const systemWatts = systemCapacityKw * 1000
-  return Math.floor(systemWatts / minerPowerW)
-}
-
-/**
- * Get month name from index (0-11).
- */
-export function getMonthName(index: number): string {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return months[index] || ''
-}

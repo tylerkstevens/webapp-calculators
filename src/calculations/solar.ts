@@ -271,7 +271,7 @@ export function calculateNetMeteringComparison(
 /**
  * Format BTC value for display.
  */
-export function formatBtc(btc: number, _decimals: number = 8): string {
+export function formatBtc(btc: number): string {
   if (btc >= 1) {
     return btc.toFixed(4) + ' BTC'
   }
