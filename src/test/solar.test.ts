@@ -158,59 +158,62 @@ describe('calculateSolarMining', () => {
       standardMonthlyProduction,
       standardMonthlySunHours,
       standardMiner,
-      5, // 5 miners
       standardBtcMetrics
     )
 
     expect(result.annualProductionKwh).toBe(annualProduction)
     expect(result.monthlyProductionKwh).toEqual(standardMonthlyProduction)
-    expect(result.maxMiners).toBe(10) // 10kW / 1000W
-    expect(result.actualMiners).toBe(5) // limited to requested amount
+    // New model: 100% utilization
+    expect(result.totalPowerW).toBe(10 * 1000) // Full system capacity
+    expect(result.totalHashrateTH).toBe((10 * 1000 / 1000) * 50) // Efficiency-based
   })
 
-  it('should limit miners to max capacity', () => {
+  it('should use full system capacity', () => {
     const result = calculateSolarMining(
       10,
       annualProduction,
       standardMonthlyProduction,
       standardMonthlySunHours,
       standardMiner,
-      20, // Request 20, but max is 10
       standardBtcMetrics
     )
 
-    expect(result.actualMiners).toBe(10)
-    expect(result.maxMiners).toBe(10)
+    // New model: always uses 100% of system capacity
+    expect(result.totalPowerW).toBe(10 * 1000)
+    expect(result.totalHashrateTH).toBe((10 * 1000 / standardMiner.powerW) * standardMiner.hashrateTH)
   })
 
-  it('should calculate correct total hashrate', () => {
+  it('should calculate correct total hashrate based on efficiency', () => {
     const result = calculateSolarMining(
       10,
       annualProduction,
       standardMonthlyProduction,
       standardMonthlySunHours,
       standardMiner,
-      5,
       standardBtcMetrics
     )
 
-    expect(result.totalHashrateTH).toBe(5 * 50) // 5 miners * 50 TH
-    expect(result.totalPowerW).toBe(5 * 1000) // 5 miners * 1000W
+    // New model: efficiency-based calculation
+    const systemPowerW = 10 * 1000
+    const expectedHashrate = (systemPowerW / standardMiner.powerW) * standardMiner.hashrateTH
+    expect(result.totalHashrateTH).toBe(expectedHashrate)
+    expect(result.totalPowerW).toBe(systemPowerW)
   })
 
-  it('should calculate utilization percentage', () => {
+  it('should calculate revenue based on actual solar production', () => {
     const result = calculateSolarMining(
       10,
       annualProduction,
       standardMonthlyProduction,
       standardMonthlySunHours,
       standardMiner,
-      5,
       standardBtcMetrics
     )
 
-    // 5000W / 10000W = 50%
-    expect(result.utilizationPercent).toBe(50)
+    // Revenue should be based on actual solar production hours, not 24/7 mining
+    expect(result.annualBtc).toBeGreaterThan(0)
+    expect(result.annualUsd).toBeGreaterThan(0)
+    expect(result.effectiveRevenuePerKwh).toBeGreaterThan(0)
   })
 
   it('should have consistent monthly/annual breakdowns', () => {
@@ -220,7 +223,6 @@ describe('calculateSolarMining', () => {
       standardMonthlyProduction,
       standardMonthlySunHours,
       standardMiner,
-      5,
       standardBtcMetrics
     )
 
@@ -238,7 +240,6 @@ describe('calculateSolarMining', () => {
       standardMonthlyProduction,
       standardMonthlySunHours,
       standardMiner,
-      5,
       standardBtcMetrics
     )
 

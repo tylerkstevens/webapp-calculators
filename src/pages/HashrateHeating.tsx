@@ -6,6 +6,7 @@ import SelectField from '../components/SelectField'
 import StateHeatMap from '../components/StateHeatMap'
 import SmartTooltip from '../components/SmartTooltip'
 import PdfReportButton from '../components/PdfReportButton'
+import SEO from '../components/SEO'
 import type { HashrateHeatingReportData, PdfChartData, PdfStateRanking, PdfMiniRanking } from '../pdf/types'
 
 import {
@@ -658,6 +659,9 @@ export default function HashrateHeating() {
   const [fuelBillAmount, setFuelBillAmount] = useState('')
   const [fuelBillUsage, setFuelBillUsage] = useState('')
 
+  // Validation errors
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
+
   // Chart expansion state
   const [savingsChartExpanded, setSavingsChartExpanded] = useState(false)
   const [savingsChartXAxis, setSavingsChartXAxis] = useState<'electricity' | 'fuel' | 'efficiency' | 'hashprice'>('electricity')
@@ -787,6 +791,22 @@ export default function HashrateHeating() {
     const defaultRate = getDefaultFuelRate(fuelType, prices, selectedCountry)
     setFuelRate(defaultRate.toFixed(2))
   }, [selectedCountry, selectedRegion, fuelType])
+
+  // Validate rates
+  useEffect(() => {
+    const errors: string[] = []
+    const elecRate = parseFloat(electricityRate)
+    const fRate = parseFloat(fuelRate)
+
+    if (isNaN(elecRate) || elecRate <= 0) {
+      errors.push('Electricity rate must be greater than $0')
+    }
+    if (isNaN(fRate) || fRate <= 0) {
+      errors.push('Fuel rate must be greater than $0')
+    }
+
+    setValidationErrors(errors)
+  }, [electricityRate, fuelRate])
 
   // Update fuel efficiency default and reset bill calculator when fuel type changes
   useEffect(() => {
@@ -923,9 +943,14 @@ export default function HashrateHeating() {
   //   - btcPrice = hashprice × 1e8 / hashvalue
   //
   // Knob 2 (Network): Network Hashrate ↔ Hashvalue
-  //   - hashvalue = (144 × 3.125 × 1e8) / networkHashrate
-  //   - networkHashrate = (144 × 3.125 × 1e8) / hashvalue
+  //   - hashvalue = (144 × (3.125 + fees) × 1e8) / networkHashrate
+  //   - networkHashrate = (144 × (3.125 + fees) × 1e8) / hashvalue
+  //   Note: fees typically ~0.2 BTC/block (~6% of block reward)
   // ============================================================================
+
+  // Get average fee rate from API data (defaults to 0.2 BTC if not available)
+  const avgFeeRate = braiinsData?.avgFeesPerBlock ?? 0.2
+  const totalReward = 3.125 + avgFeeRate
 
   // KNOB 2: Calculate effective network hashrate (Network group)
   // Network Hashrate and Hashvalue are inversely related
@@ -937,12 +962,12 @@ export default function HashrateHeating() {
     if (hashvalueOverride) {
       const hv = parseFloat(hashvalueOverride)
       if (hv > 0) {
-        // Back-calculate: networkHashrate = (144 × 3.125 × 1e8) / hashvalue
-        return (144 * 3.125 * 1e8) / hv
+        // Back-calculate: networkHashrate = (144 × (3.125 + fees) × 1e8) / hashvalue
+        return (144 * totalReward * 1e8) / hv
       }
     }
     return networkHashrate
-  }, [networkHashrateOverride, hashvalueOverride, networkHashrate])
+  }, [networkHashrateOverride, hashvalueOverride, networkHashrate, totalReward])
 
   // Calculate effective hashvalue (derived from network hashrate or Braiins API)
   const effectiveHashvalue = useMemo(() => {
@@ -950,22 +975,22 @@ export default function HashrateHeating() {
       const hv = parseFloat(hashvalueOverride)
       if (hv > 0) return hv
     }
-    // If networkHashrate is overridden, recalculate hashvalue for consistency
+    // If networkHashrate is overridden, recalculate hashvalue for consistency (includes fees)
     if (networkHashrateOverride) {
       const nh = parseFloat(networkHashrateOverride)
-      if (nh > 0) return (144 * 3.125 * 1e8) / (nh * 1e6)
+      if (nh > 0) return (144 * totalReward * 1e8) / (nh * 1e6)
     }
     // Use Braiins hashvalue directly (includes fees, more accurate)
     // Convert from BTC/TH/day to sats/TH/day
     if (braiinsData?.hashvalue) {
       return braiinsData.hashvalue * 1e8
     }
-    // Fallback: calculate from network hashrate
+    // Fallback: calculate from network hashrate (includes fees)
     if (effectiveNetworkHashrate && effectiveNetworkHashrate > 0) {
-      return (144 * 3.125 * 1e8) / effectiveNetworkHashrate
+      return (144 * totalReward * 1e8) / effectiveNetworkHashrate
     }
     return null
-  }, [hashvalueOverride, networkHashrateOverride, braiinsData, effectiveNetworkHashrate])
+  }, [hashvalueOverride, networkHashrateOverride, braiinsData, effectiveNetworkHashrate, totalReward])
 
   // KNOB 1: Calculate effective BTC price (Price group)
   // BTC Price and Hashprice are directly related via hashvalue
@@ -1570,33 +1595,33 @@ export default function HashrateHeating() {
         {
           label: 'Effective Heat Cost',
           value: `${currencySymbol}${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`,
-          explanation: 'Net cost per kWh after mining revenue offset.',
+          explanation: 'Net cost per kilowatt-hour of heat after subtracting bitcoin mining revenue from your electricity cost. This is your true heating cost when using a bitcoin miner as a heater. Lower values indicate better economics. Negative values mean you\'re being paid to heat.',
           subValue: `${currencySymbol}${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`,
         },
         {
           label: 'Break-even Rate',
           value: `${currencySymbol}${copeResult.breakevenRate.toFixed(3)}/kWh`,
-          explanation: 'Max electricity rate for free heating.',
+          explanation: 'The maximum electricity rate at which hashrate heating becomes completely free (mining revenue equals electricity cost). If your actual electricity rate is below this threshold, you profit while heating. Higher break-even rates indicate more favorable mining economics at your location.',
         },
         {
           label: 'Heating Power',
           value: `${(parseFloat(minerPower) * 3.412).toFixed(0)} BTU/h`,
-          explanation: '100% of electrical power converts to heat.',
+          explanation: 'Heat output capacity of your mining hardware measured in British Thermal Units per hour. All electrical power consumed by the miner converts to heat with 100% efficiency, just like a traditional electric resistance heater. Compare this to your heating needs and existing heating system capacity.',
         },
         {
           label: `Savings vs ${fuelSpec.label}`,
           value: `${arbitrageResult.savingsPercent >= 0 ? '+' : ''}${arbitrageResult.savingsPercent.toFixed(0)}%`,
-          explanation: 'Cost savings compared to fuel heating.',
+          explanation: `Percentage cost savings (or loss) when heating with bitcoin mining hardware instead of ${fuelSpec.label}. Positive values mean hashrate heating costs less than traditional fuel. This comparison accounts for fuel efficiency, electricity rates, and mining revenue at current market conditions.`,
         },
         {
           label: 'COPe',
           value: formatCOPe(copeResult.COPe),
-          explanation: 'Economic COP. Compare to heat pump ratings.',
+          explanation: 'Coefficient of Performance equivalent—an economic metric comparing your heating value to electricity input. Values above 1.0 mean you get more heating value than you pay for. A COPe of 3.0 competes with heat pumps. COPe approaches infinity as mining revenue approaches your electricity cost.',
         },
         {
           label: 'Mining Subsidy',
           value: `${Math.round(copeResult.R * 100)}%`,
-          explanation: '% of electricity offset by mining. 100% = free.',
+          explanation: 'Percentage of your electricity cost offset by bitcoin mining revenue. 100% means free heating (break-even). Values above 100% mean you profit while heating. Lower values indicate you\'re paying a partial heating cost. This subsidy fluctuates with BTC price and network difficulty.',
         },
       ],
 
@@ -1633,8 +1658,36 @@ export default function HashrateHeating() {
   // Render
   // ============================================================================
 
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Hashrate Heating Calculator - COPe Analysis',
+    applicationCategory: 'FinanceApplication',
+    description: 'Calculate the economic efficiency (COPe) of heating with Bitcoin miners. Compare hashrate heating vs traditional fuel sources including natural gas, propane, and heat pumps.',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+    },
+    featureList: [
+      'COPe (Coefficient of Performance - Economic) calculation',
+      'Compare mining heaters vs traditional heating',
+      'Real-time Bitcoin network data',
+      'Multi-fuel comparison (gas, propane, oil, heat pump)',
+      'Location-based energy pricing',
+    ],
+  }
+
   return (
     <div className="space-y-6">
+      <SEO
+        title="Hashrate Heating Calculator - COPe Analysis"
+        description="Calculate the economic efficiency (COPe) of heating with Bitcoin miners. Compare hashrate heating economics vs traditional heating fuels with real-time BTC network data and regional energy prices."
+        keywords="hashrate heating, COPe calculator, bitcoin mining heater, mining heating efficiency, bitcoin heater economics, heat pump vs mining"
+        canonical="/hashrate"
+        structuredData={structuredData}
+      />
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div>
@@ -1819,11 +1872,11 @@ export default function HashrateHeating() {
         )}
       </div>
 
-      {/* Input Strip */}
+      {/* Input Strip - 12-Column Grid Layout */}
       <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-4 sm:p-6 shadow-lg">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          {/* Location Selection */}
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+          {/* Card 1: Location - 2/12 columns on desktop */}
+          <div className="lg:col-span-2">
             <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
               <Thermometer className="w-4 h-4 text-blue-500" />
               Your Location
@@ -1866,8 +1919,8 @@ export default function HashrateHeating() {
             )}
           </div>
 
-          {/* Electricity Rate */}
-          <div>
+          {/* Card 2: Electricity - 3/12 columns on desktop */}
+          <div className="lg:col-span-3">
             <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-primary-500" />
               Electricity
@@ -1885,7 +1938,10 @@ export default function HashrateHeating() {
               tooltip="Find your rate on your electric bill. Look for 'Price per kWh' or divide your total bill by kWh used. Include all charges (delivery, supply, taxes) for your true all-in rate. Or use the bill calculator below."
             />
             <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
-              <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">Calculate from bill:</div>
+              <div className="flex items-center gap-1 text-xs text-surface-600 dark:text-surface-400 mb-2">
+                <span>Calculate from bill:</span>
+                <SmartTooltip content="Find your total bill amount and kWh usage on your electric bill. Look for 'Total Amount Due' and 'Total kWh Used' or 'Electricity Usage'. Some bills split charges by rate tiers." />
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <InputField
                   label="Bill"
@@ -1910,8 +1966,8 @@ export default function HashrateHeating() {
             </div>
           </div>
 
-          {/* Fuel Type & Rate */}
-          <div>
+          {/* Card 3: Compare Fuel - 4/12 columns on desktop */}
+          <div className="lg:col-span-4">
             <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
               <Flame className="w-4 h-4 text-orange-500" />
               Compare to Fuel
@@ -1954,8 +2010,9 @@ export default function HashrateHeating() {
                   />
                 </div>
                 <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
-                  <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">
-                    {fuelType === 'wood_pellets' ? 'Calculate from purchase:' : 'Calculate from bill:'}
+                  <div className="flex items-center gap-1 text-xs text-surface-600 dark:text-surface-400 mb-2">
+                    <span>{fuelType === 'wood_pellets' ? 'Calculate from purchase:' : 'Calculate from bill:'}</span>
+                    <SmartTooltip content="Enter your fuel bill total and usage to calculate your rate. Find usage on your bill as 'Therms Used' (natural gas), 'Gallons Delivered' (propane/oil), or similar units." />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <InputField
@@ -2014,8 +2071,8 @@ export default function HashrateHeating() {
             )}
           </div>
 
-          {/* Miner Selection */}
-          <div>
+          {/* Card 4: Miner - 3/12 columns on desktop */}
+          <div className="lg:col-span-3">
             <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-2">
               <Zap className="w-4 h-4 text-primary-500" />
               Miner
@@ -2031,6 +2088,7 @@ export default function HashrateHeating() {
                   label: preset.name,
                 })),
               ]}
+              tooltip="Choose your miner model or enter custom specs. More efficient miners (lower W/TH) earn more BTC per kWh of solar energy."
             />
             <div className="mt-3 p-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg space-y-2">
               <div className="text-xs text-surface-600 dark:text-surface-400 mb-2">
@@ -2066,8 +2124,25 @@ export default function HashrateHeating() {
         </div>
       </div>
 
+      {/* Validation Errors */}
+      {validationErrors.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-700 dark:text-red-300">
+          <div className="flex items-start gap-2">
+            <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">Validation Errors</p>
+              <ul className="text-sm mt-1 space-y-1">
+                {validationErrors.map((error, index) => (
+                  <li key={index}>• {error}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Results Section */}
-      {copeResult && (
+      {copeResult && validationErrors.length === 0 && (
         <div id="hashrate-results" className="space-y-4">
           {/* Results Header */}
           <div className="flex items-center justify-between">
@@ -2148,7 +2223,7 @@ export default function HashrateHeating() {
             label="COPe (Economic COP)"
             value={formatCOPe(copeResult.COPe)}
             subValue={copeChartExpanded ? undefined : "Compare to heat pump COP 2.5-4.0 • Click to explore"}
-            tooltip="COPe (Coefficient of Performance - Economic) measures heating efficiency through economics rather than thermodynamics. Formula: COPe = 1/(1-R), where R = mining revenue / electricity cost. A COPe of 3.0 means you get the same economic benefit as a heat pump with COP 3.0 — both give you 3 units of 'value' per unit of electricity. Heat pump COP varies with outdoor temp; COPe varies with BTC price and network hashrate. Higher is better. Infinity = free heating."
+            tooltip="Coefficient of Performance - Economic. Like COP for heat pumps but includes mining revenue. Formula: COPe = 1/(1-R) where R = mining revenue / electricity cost. Interpretation: COPe of 1 = full cost. COPe of 2 = 50% cost reduction. COPe of 10 = 90% cost reduction. COPe of ∞ = free or paid to heat. Compare to traditional heat pump COP (typically 2-4)."
             variant={copeResult.COPe >= 3 ? 'success' : copeResult.COPe >= 2 ? 'highlight' : 'default'}
             expandable
             expanded={copeChartExpanded}
