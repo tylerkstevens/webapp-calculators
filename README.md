@@ -35,7 +35,9 @@ Compare monetizing excess solar energy via Bitcoin mining vs traditional net met
 
 ## Features
 
-- **Real-time Bitcoin Data** — Live BTC price, hashvalue, and network stats from Braiins, CoinGecko, and Mempool.space APIs
+- **Real-time Bitcoin Data** — Live BTC price from CoinGecko, network hashrate and transaction fees from Mempool.space
+- **Three-Knob Override System** — Model any scenario by adjusting BTC price, hashvalue/hashrate, and transaction fee %
+- **Transaction Fee Modeling** — Fee % slider (0-99%) to explore different fee environments
 - **Solar Production Estimates** — NREL PVWatts integration for location-specific solar data
 - **Miner Presets** — Quick-select popular mining heaters (Heatbit, Avalon, Bitaxe, etc.)
 - **Custom Miner Input** — Enter your own power consumption and hashrate
@@ -109,7 +111,7 @@ The build output will be in the `dist/` folder.
 ```
 src/
 ├── api/                    # External API clients
-│   ├── bitcoin.ts          # Braiins, CoinGecko, Mempool.space integration
+│   ├── bitcoin.ts          # CoinGecko (price), Mempool.space (hashrate, fees)
 │   └── solar.ts            # NREL PVWatts, Zippopotam geocoding
 ├── calculations/           # Core calculation logic
 │   ├── hashrate.ts         # COPe, hashvalue, arbitrage calculations
@@ -162,11 +164,12 @@ All APIs are free (NREL requires a free API key):
 
 | API | Data | Rate Limits |
 |-----|------|-------------|
-| [Braiins Insights](https://insights.braiins.com/) | BTC price, hashvalue, hashprice, network hashrate | Generous |
-| [CoinGecko](https://www.coingecko.com/api/documentation) | Bitcoin price (USD) - fallback | ~50 req/min |
-| [Mempool.space](https://mempool.space/docs/api) | Network hashrate, difficulty - fallback | Generous |
+| [CoinGecko](https://www.coingecko.com/api/documentation) | Bitcoin price (USD) | ~50 req/min |
+| [Mempool.space](https://mempool.space/docs/api) | Network hashrate, difficulty, transaction fees (144-block average) | Generous |
 | [NREL PVWatts](https://developer.nrel.gov/docs/solar/pvwatts/v8/) | Solar production estimates | Requires API key |
 | [Zippopotam](https://www.zippopotam.us/) | ZIP code geocoding | Free, no key |
+
+Bitcoin network metrics (hashvalue, hashprice) are calculated from CoinGecko price and Mempool.space network data, including transaction fees.
 
 ### Static Data
 
@@ -199,6 +202,7 @@ npm test -- --watch
 Tests cover:
 - Hashrate heating calculations (COPe, fuel comparisons, BTU conversions)
 - Solar mining calculations (kWh-to-BTC conversion, net metering comparison)
+- Bitcoin network calculations (fee %, hashvalue, block subsidy, three-knob override logic)
 - PDF report generation
 
 ## Contributing
