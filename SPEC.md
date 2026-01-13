@@ -1,6 +1,6 @@
 # Exergy Heat Calculator Web App - Technical Specification
 
-**Version:** 1.2
+**Version:** 1.3
 **Last Updated:** 2026-01-13
 **Status:** Production (Live)
 
@@ -150,7 +150,7 @@ The calculator has three distinct input modes:
 
 The calculator answers: **"What if all my solar energy was mined?"**
 
-Only miner efficiency (J/TH) matters - not power or hashrate individually. Revenue is derived directly from kWh production using the live hashvalue (sats/TH/day) from Braiins API.
+Only miner efficiency (J/TH) matters - not power or hashrate individually. Revenue is derived directly from kWh production using the live hashvalue (sats/TH/day) calculated from network data.
 
 ```
 For each month:
@@ -182,31 +182,61 @@ monthly_sats = (monthly_kWh × 1000 / efficiency_J_TH) × (hashvalue_sats / 24)
 - **Excess mode with annual input**: Distribute by NREL production ratios or generic seasonal factors (excess correlates with production)
 - **Excess mode with monthly input**: Use user's exact monthly values
 
-### Bitcoin Network Data (Two-Knob Override System)
+### Bitcoin Network Data (Three-Knob Override System)
 
-The calculator displays live BTC network data from Braiins API with a two-knob override system:
+The calculator displays live BTC network data with a three-knob override system. Data is sourced from CoinGecko (price) and Mempool.space (network hashrate, transaction fees).
 
 #### Knob 1: Price Group (BTC Price ↔ Hashprice)
 - **BTC Price** (editable) - Current bitcoin price in USD
 - **Hashprice** (editable) - USD earned per TH/s/day
 - Relationship: `hashprice = hashvalue × btcPrice / 1e8`
-- Editing one implies the other
+- Editing one recalculates the other
 
 #### Knob 2: Network Group (Hashvalue ↔ Network Hashrate)
 - **Hashvalue** (editable) - Sats earned per TH/s/day
 - **Network Hashrate** (editable) - Total network hashrate in EH/s
-- Relationship: `hashvalue = (144 × 3.125 × 1e8) / networkHashrate`
-- Editing one implies the other
+- Editing one recalculates the other (holding Fee % constant)
+
+#### Knob 3: Fee Slider (Transaction Fees % of Reward)
+- **Label**: "Fees (% of reward)"
+- **Type**: Slider (0-99%) + text input
+- **Default**: Live fee % from mempool.space API (144-block average)
+- **Step size**: 1%
+- **Layout**: Slider left, input right; stacks vertically on mobile
+- **Position**: Inside Network Group (orange-bordered section)
+- **Keyboard support**: Arrow keys (1%), Page Up/Down (10%), Home/End (0%/99%)
+
+#### Three-Knob Recalculation Logic
+
+**Key Principle**: Fee % is the "anchor" - it is NEVER implied/recalculated from other values. Only Hashvalue and Network Hashrate can be derived.
+
+| User Adjusts | Held Constant | Recalculated |
+|--------------|---------------|--------------|
+| Fee % | Network Hashrate | Hashvalue |
+| Hashvalue | Fee % | Network Hashrate |
+| Network Hashrate | Fee % | Hashvalue |
+
+**Formula for recalculation:**
+```
+block_subsidy = 50 / (2 ^ floor(block_height / 210000))  // Auto-halving
+total_reward = block_subsidy / (1 - fee_percent/100)
+daily_reward_sats = total_reward × 144 × 1e8
+hashvalue = daily_reward_sats / network_hashrate_TH
+```
 
 #### Override Behavior
-- Default: Show live data from Braiins API with "(Live)" indicator
-- When overridden: Show user value, calculate implied values, show "Reset to live data" button
-- **Transaction Fees**: Always use Braiins API hashvalue (includes fees). For override calculations, incorporate recent historical average fee rate to maintain realistic hashvalue/hashrate relationships.
+- Default: Show live data with "(Live)" indicator
+- When overridden: Show user value, calculate implied values, show "(implied)" label on derived values
+- **Fee % never shows "(implied)"** - it's either live or user-set
+- **Reset button**: Single "Reset to live data" button resets ALL overrides (BTC price, hashprice, hashvalue, hashrate, and fee %)
+- **Fallback**: If mempool.space API fails, default to 6% fee
 
-#### Tooltips for Two-Knob System
+#### Tooltips for Three-Knob System
 - **Price Group Tooltip**: "BTC Price and Hashprice are linked. Editing one recalculates the other based on current network hashvalue. This lets you model different bitcoin price scenarios while maintaining network consistency."
 
-- **Network Group Tooltip**: "Network Hashrate and Hashvalue are linked. Editing one recalculates the other based on network difficulty and fees. This lets you model different network conditions while maintaining mathematical consistency."
+- **Network Group Tooltip**: "Network Hashrate and Hashvalue are linked through the Fee % setting. Editing Hashvalue or Hashrate recalculates the other while keeping Fee % constant. This lets you model different network conditions."
+
+- **Fee Slider Tooltip**: "Transaction fees as a percentage of total block reward (subsidy + fees). Miners earn both the block subsidy (currently {subsidy} BTC) and transaction fees. This slider lets you model different fee environments. When you adjust Fee %, the Hashvalue is recalculated while Network Hashrate stays fixed. Current live fee % reflects the last 144 blocks (~24 hours)."
 
 ### Results Display
 
@@ -311,11 +341,43 @@ When in Excess mode, show comparison card:
 - **Fallback**: US average (1400 kWh/kW, generic seasonal pattern) if API fails
 - **Debounce**: 500ms delay on ZIP code changes
 
-#### Braiins (Bitcoin Network Data)
-- **Endpoint**: `insights.braiins.com/api`
-- **Data**: BTC price, network hashrate, hashvalue, hashprice
-- **Refresh**: On component mount only
-- **Fallback**: Show loading state, allow manual override
+#### Bitcoin Network Data (CoinGecko + Mempool.space)
+
+**CoinGecko (Price Data)**:
+- **Endpoint**: `https://api.coingecko.com/api/v3/simple/price`
+- **Data**: BTC price in USD
+- **Rate Limits**: ~50 req/min (free tier)
+
+**Mempool.space (Network & Fee Data)**:
+- **Hashrate Endpoint**: `https://mempool.space/api/v1/mining/hashrate/1m`
+  - Returns: `currentHashrate` (H/s), `currentDifficulty`
+- **Reward Stats Endpoint**: `https://mempool.space/api/v1/mining/reward-stats/144`
+  - Returns: `startBlock`, `endBlock`, `totalReward`, `totalFee` (sats)
+  - Used to calculate: avg fees per block, fee percentage
+- **Block Height**: Derived from `endBlock` in reward-stats response
+
+**Calculated Values**:
+```typescript
+// Block subsidy from height (auto-halving)
+blockSubsidy = 50 / Math.pow(2, Math.floor(blockHeight / 210000))
+
+// Fee calculations from reward-stats
+avgFeesPerBlockSats = totalFee / 144
+feePercent = (avgFeesPerBlockSats / (blockSubsidySats + avgFeesPerBlockSats)) * 100
+
+// Hashvalue includes both subsidy and fees
+dailyRewardSats = (blockSubsidySats + avgFeesPerBlockSats) * 144
+hashvalueSats = dailyRewardSats / networkHashrateTH
+
+// Hashprice in USD
+hashpriceUSD = (hashvalueSats / 1e8) * btcPrice
+```
+
+**Refresh**: On component mount only
+**Fallback**:
+- Price: Show loading state
+- Fee %: Default to 6% if reward-stats fails
+- Show loading spinner until data arrives
 
 ### PDF Report
 
@@ -329,6 +391,13 @@ When in Excess mode, show comparison card:
   5. Comparison table (if Excess mode)
 - **Footer**: "Generated with Claude Code" badge, generation date
 - **Filename**: `solar-mining-potential.pdf` or `solar-net-metering-comparison.pdf`
+
+**Bitcoin Data Section in PDF**:
+Always include:
+- BTC Price: ${price}
+- Hashprice: ${hashprice}/TH/day
+- Network Hashrate: {hashrate} EH/s
+- Transaction Fees: {feePercent}% of reward
 
 ---
 
@@ -378,7 +447,12 @@ Calculate the Coefficient of Performance - Economic (COPe) for hashrate heating 
 - **Hashrate** (TH/s)
 
 ### Bitcoin Network Data
-Same two-knob override system as Solar calculator. See Solar calculator section for details.
+Same three-knob override system as Solar calculator. See Solar calculator section for details.
+
+**Key Points for Hashrate Heating:**
+- Fee % slider affects hashvalue, which affects daily mining revenue, which affects COPe
+- All three knobs (BTC Price, Hashvalue/Hashrate, Fee %) work identically in both calculators
+- Same slider position (inside Network Group), same layout, same keyboard support
 
 ### Calculation Logic
 
@@ -493,15 +567,26 @@ Monthly/Annual Savings = (Traditional - Hashrate) × monthly_heat_kWh × months
 
 ### Transaction Fees in Network Calculations
 
-**Always Use Braiins API Values**:
-- Braiins hashvalue includes transaction fees
-- Braiins network hashrate is actual measured hashrate
+**Fee % Slider Integration**:
+The Fee % slider makes transaction fee handling explicit and user-controllable:
+
+1. **Live Data**: Mempool.space reward-stats provides actual fee % from last 144 blocks
+2. **Override Scenarios**: Fee % is held constant when user adjusts Hashvalue or Hashrate
+3. **User Control**: User can model any fee environment (low fees = 1%, high fees = 50%+)
 
 **For Override Calculations**:
-- When user overrides Network Hashrate → Calculate implied hashvalue including recent historical average fee rate
-- When user overrides Hashvalue → Calculate implied network hashrate accounting for fees in that hashvalue
-- Use recent 30-day average transaction fee data from Mempool.space or similar API
-- **Tooltip Clarification**: Document that hashvalue includes both block subsidy (3.125 BTC) and transaction fees
+- When user overrides **Fee %** → Hold Hashrate → Recalculate Hashvalue
+- When user overrides **Hashvalue** → Hold Fee % → Recalculate Network Hashrate
+- When user overrides **Network Hashrate** → Hold Fee % → Recalculate Hashvalue
+
+**Formula:**
+```
+total_reward_per_block = block_subsidy / (1 - fee_percent/100)
+daily_reward_sats = total_reward_per_block × 144 × 1e8
+hashvalue = daily_reward_sats / network_hashrate_TH
+```
+
+**Tooltip Clarification**: Hashvalue includes both block subsidy and transaction fees. The Fee % slider shows what portion of the total reward comes from fees.
 
 ### PDF Report
 
@@ -510,6 +595,13 @@ Monthly/Annual Savings = (Traditional - Hashrate) × monthly_heat_kWh × months
 - Add/improve explanatory paragraphs for COPe, subsidy %, savings
 - Ensure completeness: all inputs, assumptions, results included
 - Match visual design, content structure, and branding of existing report
+
+**Bitcoin Data Section in PDF**:
+Always include:
+- BTC Price: ${price}
+- Hashprice: ${hashprice}/TH/day
+- Network Hashrate: {hashrate} EH/s
+- Transaction Fees: {feePercent}% of reward
 
 ---
 
@@ -673,7 +765,7 @@ Monthly/Annual Savings = (Traditional - Hashrate) × monthly_heat_kWh × months
 ```
 src/
 ├── api/              # External API integrations
-│   ├── bitcoin.ts    # Braiins, CoinGecko, Mempool
+│   ├── bitcoin.ts    # CoinGecko (price), Mempool.space (hashrate, fees)
 │   └── solar.ts      # NREL, Zippopotam
 ├── calculations/     # Pure calculation functions
 │   ├── hashrate.ts   # COPe, arbitrage, network metrics
@@ -782,7 +874,7 @@ export const MINER_PRESETS: MinerSpec[] = [
 - Test PDF report generation
 
 ### Unit Tests (Implemented)
-- ✅ **100 tests passing** across 3 test suites
+- ✅ **100+ tests passing** across test suites (count will increase with fee slider feature)
 - ✅ **100% statement coverage** on calculation logic
 - ✅ **100% function coverage**
 - ✅ **88.88% branch coverage** (only minor edge cases uncovered)
@@ -794,9 +886,10 @@ export const MINER_PRESETS: MinerSpec[] = [
 - **Testing Framework**: Vitest with v8 coverage provider
 
 **Test Files:**
-- `src/test/hashrate.test.ts` (37 tests) - COPe, arbitrage, network calculations
-- `src/test/solar.test.ts` (39 tests) - kWh-based mining calculations, net metering, monthly excess
+- `src/test/hashrate.test.ts` (37+ tests) - COPe, arbitrage, network calculations
+- `src/test/solar.test.ts` (39+ tests) - kWh-based mining calculations, net metering, monthly excess
 - `src/test/pdf.test.ts` (24 tests) - PDF report generation, state rankings
+- `src/test/bitcoin.test.ts` (NEW) - Fee calculations, three-knob logic, API response handling
 
 **Example Test Cases**:
 ```typescript
@@ -816,6 +909,30 @@ describe('calculateSolarMining', () => {
   it('calculates BTC directly from kWh', () => {...})
   it('has higher revenue in months with more production', () => {...})
   it('uses miner efficiency correctly', () => {...})
+})
+
+// NEW: Fee calculation tests
+describe('calculateFeePercent', () => {
+  it('calculates fee % from avg fees and block subsidy', () => {...})
+  it('returns 0 for zero fees', () => {...})
+  it('caps at 99%', () => {...})
+})
+
+describe('calculateHashvalueWithFees', () => {
+  it('recalculates hashvalue when fee % changes', () => {...})
+  it('holds network hashrate constant', () => {...})
+  it('handles 0% fees (subsidy only)', () => {...})
+})
+
+describe('calculateImpliedHashrate', () => {
+  it('derives network hashrate from hashvalue and fee %', () => {...})
+  it('holds fee % constant', () => {...})
+})
+
+describe('getBlockSubsidy', () => {
+  it('returns 3.125 for current epoch', () => {...})
+  it('returns 1.5625 after next halving', () => {...})
+  it('calculates correctly for any block height', () => {...})
 })
 ```
 
@@ -863,11 +980,13 @@ describe('calculateSolarMining', () => {
 - Pool fees and operational costs modeling
 - Multi-scenario comparison tools
 - Historical BTC price charts
+- Historical fee trend charts or fee predictions
 - Battery storage modeling for solar
 - URL parameter sharing / bookmarkable scenarios (planned as separate feature)
 - User accounts and saved scenarios
 - Integration with live mining pool data
 - More countries beyond US/Canada
+- Fee averaging over different time windows (currently fixed at 144 blocks)
 
 ---
 
@@ -910,53 +1029,100 @@ hashvalue = 47,880,000,000 / network_hashrate_TH
 - If fees < 0: Treat as 0 (invalid but defensively handled)
 - Very high network hashrate (1000+ EH/s): Formula still valid, just lower hashvalue
 
-#### Hashvalue Override Scenarios
+#### Three-Knob Override System (Fee %, Hashvalue, Network Hashrate)
 
-**Scenario 1: User Overrides Hashvalue (calculates implied network hashrate)**
+The three-knob system allows users to model any Bitcoin network scenario. Fee % is the "anchor" - it's never implied from other values.
+
+**Key Formulas:**
+
 ```
-Given: user_hashvalue (sats/TH/day)
+// Block subsidy from block height (auto-halving)
+block_subsidy_BTC = 50 / (2 ^ floor(block_height / 210000))
+block_subsidy_sats = block_subsidy_BTC × 1e8
+
+// Total reward from fee percentage
+total_reward_per_block = block_subsidy / (1 - fee_percent/100)
+total_reward_sats = total_reward_per_block × 1e8
+
+// Daily reward
+daily_reward_sats = total_reward_sats × 144
+
+// Hashvalue from network hashrate and fee %
+hashvalue_sats = daily_reward_sats / network_hashrate_TH
+
+// Network hashrate from hashvalue and fee %
+network_hashrate_TH = daily_reward_sats / hashvalue_sats
+```
+
+**Scenario 1: User Adjusts Fee % → Recalculate Hashvalue**
+```
+Given: fee_percent (0-99%), network_hashrate_TH (held constant)
+Calculate: new_hashvalue
+
+total_reward = block_subsidy / (1 - fee_percent/100)
+daily_reward_sats = total_reward × 144 × 1e8
+new_hashvalue = daily_reward_sats / network_hashrate_TH
+```
+
+**Example:**
+```
+fee_percent = 10%
+network_hashrate = 800,000,000 TH/s (800 EH/s)
+block_subsidy = 3.125 BTC
+
+total_reward = 3.125 / (1 - 0.10) = 3.125 / 0.90 = 3.472 BTC/block
+daily_reward_sats = 3.472 × 144 × 1e8 = 50,000,000,000 sats
+new_hashvalue = 50,000,000,000 / 800,000,000 = 62.5 sats/TH/day
+```
+
+**Scenario 2: User Adjusts Hashvalue → Recalculate Network Hashrate**
+```
+Given: user_hashvalue (sats/TH/day), fee_percent (held constant)
 Calculate: implied_network_hashrate
 
-implied_network_hashrate = (45,000,000,000 + avg_daily_fees_sats) / user_hashvalue
-
-where avg_daily_fees_sats uses 30-day historical average from Mempool.space API
+total_reward = block_subsidy / (1 - fee_percent/100)
+daily_reward_sats = total_reward × 144 × 1e8
+implied_network_hashrate = daily_reward_sats / user_hashvalue
 ```
 
 **Example:**
 ```
-user_hashvalue = 60,000 sats/TH/day
-avg_fees = 0.2 BTC/block (30-day average)
-avg_daily_fees_sats = 144 × 0.2 × 1e8 = 2,880,000,000 sats
+user_hashvalue = 50 sats/TH/day
+fee_percent = 6% (held constant)
+block_subsidy = 3.125 BTC
 
-implied_network_hashrate = (45B + 2.88B) / 60,000
-                         = 47,880,000,000 / 60,000
-                         = 798,000 TH/s (798 EH/s)
+total_reward = 3.125 / (1 - 0.06) = 3.125 / 0.94 = 3.324 BTC/block
+daily_reward_sats = 3.324 × 144 × 1e8 = 47,872,340,426 sats
+implied_network_hashrate = 47,872,340,426 / 50 = 957,446,809 TH/s (957 EH/s)
 ```
 
-**Scenario 2: User Overrides Network Hashrate (calculates implied hashvalue)**
+**Scenario 3: User Adjusts Network Hashrate → Recalculate Hashvalue**
 ```
-Given: user_network_hashrate (TH/s)
+Given: user_network_hashrate (TH/s), fee_percent (held constant)
 Calculate: implied_hashvalue
 
-implied_hashvalue = (45,000,000,000 + avg_daily_fees_sats) / user_network_hashrate
-
-where avg_daily_fees_sats uses 30-day historical average from Mempool.space API
+total_reward = block_subsidy / (1 - fee_percent/100)
+daily_reward_sats = total_reward × 144 × 1e8
+implied_hashvalue = daily_reward_sats / user_network_hashrate
 ```
 
 **Example:**
 ```
-user_network_hashrate = 800,000 TH/s (800 EH/s)
-avg_fees = 0.2 BTC/block (30-day average)
-avg_daily_fees_sats = 2,880,000,000 sats
+user_network_hashrate = 1,000,000,000 TH/s (1000 EH/s)
+fee_percent = 6% (held constant)
+block_subsidy = 3.125 BTC
 
-implied_hashvalue = 47,880,000,000 / 800,000
-                  = 59,850 sats/TH/day
+total_reward = 3.125 / 0.94 = 3.324 BTC/block
+daily_reward_sats = 47,872,340,426 sats
+implied_hashvalue = 47,872,340,426 / 1,000,000,000 = 47.87 sats/TH/day
 ```
 
-**API Requirement:**
-- Fetch 30-day average transaction fee per block from Mempool.space or similar API
-- Use this average when calculating implied values in override scenarios
-- Update periodically (daily or weekly) to reflect current fee market conditions
+**Edge Cases:**
+- fee_percent = 0%: Total reward = block subsidy only
+- fee_percent = 99%: Total reward = block_subsidy / 0.01 = 100× subsidy (extreme but valid)
+- fee_percent >= 100%: Invalid - clamped to 99%
+- network_hashrate = 0: Return 0 to prevent division by zero
+- hashvalue = 0: Return 0 (invalid input)
 
 #### Hashprice ($/TH/day)
 
@@ -1127,7 +1293,7 @@ savings_percent = ((traditional - hashrate) / traditional) × 100
 
 ---
 
-**Last Updated:** 2026-01-13 (Solar formula refactored to kWh-based calculation)
+**Last Updated:** 2026-01-13 (Transaction fee slider feature added - three-knob override system)
 
 ---
 

@@ -1,6 +1,6 @@
 # Exergy Heat Calculator Web App - Architecture Document
 
-**Version:** 1.2
+**Version:** 1.3
 **Last Updated:** 2026-01-13
 **Status:** Production (All Phases Complete)
 **Reference:** [SPEC.md](./SPEC.md)
@@ -89,13 +89,13 @@ Testing:              Vitest
                 ┌───────────┴────────────┐
                 │                        │
         ┌───────▼──────┐         ┌──────▼────────┐
-        │  Braiins API │         │  NREL PVWatts │
-        │ (BTC Network)│         │ (Solar Data)  │
+        │   CoinGecko  │         │  NREL PVWatts │
+        │ (BTC Price)  │         │ (Solar Data)  │
         └──────────────┘         └───────────────┘
                 │                        │
         ┌───────▼──────┐         ┌──────▼────────┐
-        │ Zippopotam   │         │ Mempool.space │
-        │ (Geocoding)  │         │  (TX Fees)    │
+        │Mempool.space │         │  Zippopotam   │
+        │(Hashrate+Fee)│         │  (Geocoding)  │
         └──────────────┘         └───────────────┘
 ```
 
@@ -107,8 +107,9 @@ Testing:              Vitest
 │                                                           │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │  Bitcoin Network Data Section                    │   │
-│  │  (Two-Knob Override System)                      │   │
+│  │  (Three-Knob Override System)                    │   │
 │  │  - Live API data with manual override controls   │   │
+│  │  - Fee % slider for transaction fee modeling     │   │
 │  └─────────────────────────────────────────────────┘   │
 │                                                           │
 │  ┌─────────────────────────────────────────────────┐   │
@@ -162,7 +163,7 @@ Testing:              Vitest
                  │
 ┌────────────────▼─────────────────────────────────────────┐
 │ Layer 4: API Integration                                 │
-│ - api/bitcoin.ts (Braiins, Mempool)                      │
+│ - api/bitcoin.ts (CoinGecko price, Mempool hashrate+fees)│
 │ - api/solar.ts (NREL, Zippopotam)                        │
 │ Role: External data fetching with error handling        │
 └──────────────────────────────────────────────────────────┘
@@ -274,11 +275,11 @@ User Input
                     └─► Update results display
 
 BTC Network Data (on mount)
-    └─► Braiins API
-        └─► btcPrice, networkHashrate, hashvalue, hashprice
-            └─► Update braiinsData state
+    └─► CoinGecko API (price) + Mempool.space (hashrate, fees)
+        └─► btcPrice, networkHashrate, hashvalue, hashprice, feePercent
+            └─► Update bitcoinData state
                 └─► Enable override controls
-                    └─► Two-knob system calculations
+                    └─► Three-knob system calculations
 ```
 
 ### Hashrate Heating Calculator Flow
@@ -305,13 +306,13 @@ User Input
                     └─► Update results display
 
 BTC Network Data (on mount)
-    └─► Braiins API
-        └─► btcPrice, networkHashrate, hashvalue, hashprice
-            └─► Update braiinsData state
+    └─► CoinGecko API (price) + Mempool.space (hashrate, fees)
+        └─► btcPrice, networkHashrate, hashvalue, hashprice, feePercent
+            └─► Update bitcoinData state
                 └─► Enable override controls
 ```
 
-### Two-Knob Override System (Both Calculators)
+### Three-Knob Override System (Both Calculators)
 
 ```
 Knob 1: Price Group
@@ -323,19 +324,26 @@ Knob 1: Price Group
             └─► Clear btcPriceOverride
                 └─► Calculate implied btcPrice from (hashprice × 1e8 / hashvalue)
 
-Knob 2: Network Group
+Knob 2: Network Group (Hashvalue ↔ Network Hashrate)
     ├─► User edits Network Hashrate
     │       └─► Clear hashvalueOverride
-    │           └─► Calculate implied hashvalue from network hashrate + fee assumption
+    │           └─► Recalculate implied hashvalue (holding Fee % constant)
     │
     └─► User edits Hashvalue
             └─► Clear networkHashrateOverride
-                └─► Calculate implied network hashrate from hashvalue + fee assumption
+                └─► Recalculate implied network hashrate (holding Fee % constant)
 
-Fee Handling:
-    - Braiins API hashvalue includes fees (preferred source)
-    - Override calculations use 30-day average fee rate from Mempool.space
-    - Maintains realistic relationships between metrics
+Knob 3: Fee Slider
+    └─► User adjusts Fee %
+            └─► Clear hashvalueOverride
+                └─► Recalculate implied hashvalue (holding Network Hashrate constant)
+                    └─► Formula: hashvalue = (subsidy × 144 × 1e8 / (1 - feePercent/100)) / hashrate
+
+Key Principle:
+    - Fee % is the "anchor" - NEVER implied from other values
+    - Fee % is only live (from API) or user-set
+    - Only Hashvalue and Network Hashrate can be derived/implied
+    - Block subsidy calculated from block height (auto-halving support)
 ```
 
 ---
@@ -363,7 +371,7 @@ const [inputMode, setInputMode] = useState<InputMode>('estimate')
 
 #### 2. API Data State (useState)
 ```typescript
-const [braiinsData, setBraiinsData] = useState<BraiinsMetrics | null>(null)
+const [bitcoinData, setBitcoinData] = useState<BitcoinMetrics | null>(null)
 const [solarEstimate, setSolarEstimate] = useState<SolarEstimate | null>(null)
 const [loadingBtc, setLoadingBtc] = useState(true)
 const [loadingSolar, setLoadingSolar] = useState(false)
@@ -371,10 +379,16 @@ const [loadingSolar, setLoadingSolar] = useState(false)
 
 #### 3. Override State (useState)
 ```typescript
+// Price group
 const [btcPriceOverride, setBtcPriceOverride] = useState<string>('')
-const [hashvalueOverride, setHashvalueOverride] = useState<string>('')
 const [hashpriceOverride, setHashpriceOverride] = useState<string>('')
+
+// Network group
+const [hashvalueOverride, setHashvalueOverride] = useState<string>('')
 const [networkHashrateOverride, setNetworkHashrateOverride] = useState<string>('')
+
+// Fee slider (NEW)
+const [feeOverride, setFeeOverride] = useState<string>('')  // '' = use live data
 ```
 
 #### 4. Derived State (useMemo)
@@ -408,8 +422,8 @@ useEffect(() => {
   async function fetchBtcData() {
     setLoadingBtc(true)
     try {
-      const data = await getBraiinsData()
-      setBraiinsData(data)
+      const data = await getBitcoinMetrics()
+      setBitcoinData(data)
     } catch (error) {
       console.error('Error fetching BTC data:', error)
     } finally {
@@ -638,10 +652,10 @@ export function calculateHashprice(
 **src/api/bitcoin.ts**
 
 ```typescript
-// Braiins API - Primary source for BTC network data
-export async function getBraiinsData(): Promise<BraiinsMetrics> {
+// Bitcoin Metrics - Fetches from CoinGecko (price) + Mempool.space (hashrate, fees)
+export async function getBitcoinMetrics(): Promise<BitcoinMetrics> {
   try {
-    const response = await axios.get('https://insights.braiins.com/api/...')
+    // Price from CoinGecko, hashrate + fees from Mempool.space
     return {
       btcPrice: response.data.price,
       networkHashrate: response.data.hashrate,
@@ -650,7 +664,7 @@ export async function getBraiinsData(): Promise<BraiinsMetrics> {
       difficulty: response.data.difficulty
     }
   } catch (error) {
-    console.error('Braiins API error:', error)
+    console.error('Bitcoin metrics API error:', error)
     throw error  // Let component handle with loading state
   }
 }
@@ -1077,7 +1091,7 @@ webapp-calculators/
 │   └── assets/
 ├── src/
 │   ├── api/
-│   │   ├── bitcoin.ts           # Braiins, Mempool APIs
+│   │   ├── bitcoin.ts           # CoinGecko price, Mempool hashrate+fees
 │   │   └── solar.ts             # NREL, Zippopotam APIs
 │   ├── calculations/
 │   │   ├── hashrate.ts          # COPe, arbitrage logic
@@ -1222,7 +1236,7 @@ src/
 **Completion Date:** 2026-01-07
 
 **Accomplishments:**
-- ✅ Using Braiins API hashvalue (includes transaction fees)
+- ✅ Using live fee data from Mempool.space (includes transaction fees via Fee % slider)
 - ✅ Implemented fee-aware override calculations
 - ✅ Added Mempool.space API integration for historical fee data
 - ✅ Added comprehensive tooltips explaining fee inclusion
@@ -1432,7 +1446,7 @@ describe('calculateCOPe', () => {
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| **API Downtime** (Braiins, NREL) | Users can't get live data | Medium | Fallback data + manual override system already implemented |
+| **API Downtime** (CoinGecko, Mempool, NREL) | Users can't get live data | Medium | Fallback data + manual override system already implemented |
 | **Calculation Errors** | Wrong financial decisions | Low | Unit tests + manual verification + user feedback loop |
 | **Breaking Changes** from Spec Refactor | Regression bugs | Medium | Phased implementation + thorough testing between phases |
 | **Browser Compatibility** | Users on older browsers can't access | Low | Target modern browsers only (documented in spec) |
@@ -1480,7 +1494,7 @@ These architectural considerations are documented but not currently planned:
   - [Tailwind CSS](https://tailwindcss.com/docs)
 - **APIs**:
   - [NREL PVWatts](https://developer.nrel.gov/docs/solar/pvwatts/v8/)
-  - [Braiins Insights](https://insights.braiins.com/)
+  - [CoinGecko API](https://www.coingecko.com/api/documentation)
   - [Mempool.space API](https://mempool.space/docs/api)
 
 ---
@@ -1510,10 +1524,10 @@ These architectural considerations are documented but not currently planned:
    - Comprehensive tooltips for user education
 
 3. **Data Integration**
-   - Live BTC network data (Braiins API)
+   - Live BTC network data (CoinGecko + Mempool.space APIs)
    - Solar production estimates (NREL PVWatts)
-   - Two-knob override system for scenario modeling
-   - Transaction fee-aware calculations
+   - Three-knob override system (BTC Price, Hashvalue/Hashrate, Fee %)
+   - Transaction fee-aware calculations via Fee % slider
 
 4. **Quality Assurance**
    - 100 passing unit tests
