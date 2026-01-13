@@ -12,7 +12,7 @@ import type { SolarMiningReportData, PdfInputCategory, PdfResultItem } from '../
 import {
   calculateSolarMining,
   calculateNetMeteringComparison,
-  calculateDailySolarBtc,
+  calculateMonthlyExcessMining,
   formatBtc,
   formatUsd,
   formatKwh,
@@ -20,7 +20,6 @@ import {
   MINER_PRESETS,
   DEFAULT_CUSTOM_MINER,
   MinerSpec,
-  BTCMetrics,
 } from '../calculations/solar'
 
 import { getSolarEstimate, SolarEstimate } from '../api/solar'
@@ -338,15 +337,11 @@ export default function SolarMonetization() {
 
   // Note: Miner quantity removed - calculations now assume 100% solar utilization
 
-  // BTC metrics for calculations (uses effective values with overrides)
-  const btcMetrics: BTCMetrics | null = useMemo(() => {
-    if (effectiveBtcPrice === null || effectiveNetworkHashrate === null) return null
-    return {
-      btcPrice: effectiveBtcPrice,
-      networkHashrate: effectiveNetworkHashrate,
-      blockReward: 3.125,
-    }
-  }, [effectiveBtcPrice, effectiveNetworkHashrate])
+  // Check if we have required data for calculations
+  const hasRequiredData = effectiveBtcPrice !== null && effectiveHashvalue !== null
+
+  // Generic seasonal distribution factors (US average)
+  const SEASONAL_FACTORS = [0.060, 0.065, 0.080, 0.090, 0.100, 0.105, 0.105, 0.100, 0.090, 0.080, 0.065, 0.060]
 
   // Monthly production breakdown
   const monthlyKwh = useMemo(() => {
@@ -359,21 +354,20 @@ export default function SolarMonetization() {
       return monthlyProductionInputs.map(v => parseFloat(v) || 0)
     }
 
-    // Annual entry: distribute by location's seasonal profile
+    // Annual entry: distribute by location's production profile or generic seasonal factors
     const annual = parseFloat(annualProductionKwh) || 0
-    if (solarEstimate?.monthlySunHours) {
-      // Use actual sun hours ratio from location
-      const totalSunHours = solarEstimate.monthlySunHours.reduce((a, b) => a + b, 0)
-      if (totalSunHours > 0) {
-        return solarEstimate.monthlySunHours.map(
-          hours => Math.round(annual * (hours / totalSunHours))
+    if (solarEstimate?.monthlyKwh) {
+      // Use NREL's monthly production ratios (already accounts for location)
+      const nrelTotal = solarEstimate.monthlyKwh.reduce((a, b) => a + b, 0)
+      if (nrelTotal > 0) {
+        return solarEstimate.monthlyKwh.map(
+          kwh => Math.round(annual * (kwh / nrelTotal))
         )
       }
     }
 
     // Fallback: generic seasonal factors
-    const monthlyFactors = [0.060, 0.065, 0.080, 0.090, 0.100, 0.105, 0.105, 0.100, 0.090, 0.080, 0.065, 0.060]
-    return monthlyFactors.map(f => Math.round(annual * f))
+    return SEASONAL_FACTORS.map(f => Math.round(annual * f))
   }, [inputMode, solarEstimate, dataEntryMethod, monthlyProductionInputs, annualProductionKwh])
 
   // Annual production (from estimate, monthly sum, or user input)
@@ -397,15 +391,22 @@ export default function SolarMonetization() {
       return monthlyExportInputs.map(v => parseFloat(v) || 0)
     }
 
-    // Annual entry: distribute by location's sun hours or generic seasonal pattern
+    // Annual entry: distribute by location's production profile or generic seasonal factors
     const annualExport = parseFloat(excessKwh) || 0
     if (annualExport === 0) return Array(12).fill(0)
 
-    // Use sun hours for seasonal distribution (solar export correlates with sun hours)
-    const sunHoursPattern = solarEstimate?.monthlySunHours || [3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.0, 5.5, 5.0, 4.5, 3.5, 3.0]
-    const totalSunHours = sunHoursPattern.reduce((a, b) => a + b, 0)
+    // Use NREL's monthly production ratios if available (excess correlates with production)
+    if (solarEstimate?.monthlyKwh) {
+      const nrelTotal = solarEstimate.monthlyKwh.reduce((a, b) => a + b, 0)
+      if (nrelTotal > 0) {
+        return solarEstimate.monthlyKwh.map(
+          kwh => Math.round(annualExport * (kwh / nrelTotal))
+        )
+      }
+    }
 
-    return sunHoursPattern.map(hours => Math.round(annualExport * (hours / totalSunHours)))
+    // Fallback: generic seasonal factors
+    return SEASONAL_FACTORS.map(f => Math.round(annualExport * f))
   }, [inputMode, dataEntryMethod, monthlyExportInputs, excessKwh, solarEstimate])
 
   // Annual export (from monthly sum or user input)
@@ -417,37 +418,22 @@ export default function SolarMonetization() {
     return parseFloat(excessKwh) || 0
   }, [inputMode, dataEntryMethod, monthlyExportKwh, excessKwh])
 
-  // Sun hours
-  const sunHours = useMemo(() => {
-    if (inputMode === 'estimate' && solarEstimate) {
-      return solarEstimate.monthlySunHours
-    }
-    // Default seasonal pattern
-    return [3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.0, 5.5, 5.0, 4.5, 3.5, 3.0]
-  }, [inputMode, solarEstimate])
-
-  // Average sun hours
-  const avgSunHours = useMemo(() => {
-    return sunHours.reduce((a, b) => a + b, 0) / 12
-  }, [sunHours])
-
-  // Main mining results
+  // Main mining results (uses kWh-based formula with hashvalue)
   const miningResult = useMemo(() => {
-    if (!btcMetrics || annualKwh <= 0) return null
+    if (!hasRequiredData || annualKwh <= 0 || !effectiveHashvalue || !effectiveBtcPrice) return null
 
     return calculateSolarMining(
-      systemKw,
       annualKwh,
       monthlyKwh,
-      sunHours,
       miner,
-      btcMetrics
+      effectiveHashvalue,
+      effectiveBtcPrice
     )
-  }, [btcMetrics, systemKw, annualKwh, monthlyKwh, sunHours, miner])
+  }, [hasRequiredData, annualKwh, monthlyKwh, miner, effectiveHashvalue, effectiveBtcPrice])
 
   // Net metering comparison (for excess mode)
   const netMeteringResult = useMemo(() => {
-    if (!btcMetrics || inputMode !== 'excess') return null
+    if (!hasRequiredData || inputMode !== 'excess' || !effectiveHashvalue || !effectiveBtcPrice) return null
 
     const rate = parseFloat(netMeteringRate) || 0.08
 
@@ -457,40 +443,26 @@ export default function SolarMonetization() {
       annualExportKwh,
       rate,
       miner,
-      avgSunHours,
-      btcMetrics
+      effectiveHashvalue,
+      effectiveBtcPrice
     )
-  }, [btcMetrics, inputMode, annualExportKwh, netMeteringRate, miner, avgSunHours])
+  }, [hasRequiredData, inputMode, annualExportKwh, netMeteringRate, miner, effectiveHashvalue, effectiveBtcPrice])
 
   // Monthly mining revenue breakdown (for excess mode chart)
   const monthlyExcessMiningResult = useMemo(() => {
-    if (!btcMetrics || inputMode !== 'excess' || !monthlyExportKwh) return null
+    if (!hasRequiredData || inputMode !== 'excess' || !monthlyExportKwh || !effectiveHashvalue || !effectiveBtcPrice) return null
 
-    const monthlyBtc: number[] = []
-    const monthlyUsd: number[] = []
-
-    // For each month, calculate mining revenue from excess kWh
-    monthlyExportKwh.forEach(kwhThisMonth => {
-      const minerKwh = miner.powerW / 1000
-      const miningHours = kwhThisMonth / minerKwh
-
-      // Use avgSunHours to estimate hourly BTC rate
-      const dailyBtc = calculateDailySolarBtc(miner.hashrateTH, avgSunHours, btcMetrics)
-      const hourlyBtcRate = dailyBtc / avgSunHours
-
-      const btc = hourlyBtcRate * miningHours
-      const usd = btc * btcMetrics.btcPrice
-
-      monthlyBtc.push(btc)
-      monthlyUsd.push(usd)
-    })
-
-    return { monthlyBtc, monthlyUsd }
-  }, [btcMetrics, inputMode, monthlyExportKwh, miner, avgSunHours])
+    return calculateMonthlyExcessMining(
+      monthlyExportKwh,
+      miner,
+      effectiveHashvalue,
+      effectiveBtcPrice
+    )
+  }, [hasRequiredData, inputMode, monthlyExportKwh, miner, effectiveHashvalue, effectiveBtcPrice])
 
   // Excess mode mining summary (for result cards)
   const excessMiningData = useMemo(() => {
-    if (!monthlyExcessMiningResult || !annualExportKwh) return null
+    if (!monthlyExcessMiningResult || !annualExportKwh || !effectiveBtcPrice) return null
 
     const annualBtc = monthlyExcessMiningResult.monthlyBtc.reduce((a, b) => a + b, 0)
     const annualUsd = monthlyExcessMiningResult.monthlyUsd.reduce((a, b) => a + b, 0)
@@ -507,9 +479,8 @@ export default function SolarMonetization() {
       monthlyUsd,
       effectiveRevenuePerKwh,
       btcPerKwh,
-      avgSunHoursPerDay: avgSunHours,
     }
-  }, [monthlyExcessMiningResult, annualExportKwh, avgSunHours])
+  }, [monthlyExcessMiningResult, annualExportKwh, effectiveBtcPrice])
 
   // ============================================================================
   // PDF Report Data Generation
@@ -543,16 +514,14 @@ export default function SolarMonetization() {
           { label: 'Location', value: location },
           { label: 'System Size', value: `${systemSizeKw} kW` },
           { label: 'Annual Production', value: `${annualKwh.toLocaleString()} kWh` },
-          { label: 'Avg Sun Hours', value: `${miningResult.avgSunHoursPerDay.toFixed(1)} hrs/day` },
         ],
       },
       {
         title: 'Mining Setup',
         items: [
           { label: 'Miner Model', value: minerName },
-          { label: 'Miner Efficiency', value: `${miner.hashrateTH.toFixed(1)} TH/s @ ${miner.powerW}W` },
-          { label: 'Total Power', value: `${(miningResult.totalPowerW / 1000).toFixed(1)} kW` },
-          { label: 'Total Hashrate', value: `${miningResult.totalHashrateTH.toFixed(0)} TH/s` },
+          { label: 'Miner Specs', value: `${miner.hashrateTH.toFixed(1)} TH/s @ ${miner.powerW}W` },
+          { label: 'Efficiency', value: `${(miner.powerW / miner.hashrateTH).toFixed(1)} J/TH` },
         ],
       },
     ]
@@ -600,7 +569,7 @@ export default function SolarMonetization() {
       generatedDate: new Date().toLocaleDateString(),
       location,
       isProfitable: miningResult.annualUsd > 0,
-      summaryText: `Mining ${formatBtc(miningResult.annualBtc)} (${formatUsd(miningResult.annualUsd)}) annually with ${(miningResult.totalPowerW / 1000).toFixed(1)}kW capacity at ${miner.hashrateTH.toFixed(0)} TH/s efficiency.`,
+      summaryText: `Mining ${formatBtc(miningResult.annualBtc)} (${formatUsd(miningResult.annualUsd)}) annually from ${formatKwh(miningResult.annualProductionKwh)} solar production at ${(miner.powerW / miner.hashrateTH).toFixed(1)} J/TH efficiency.`,
       inputs,
       results,
       monthlyChart,
@@ -636,7 +605,6 @@ export default function SolarMonetization() {
         items: [
           { label: 'Location', value: location },
           { label: 'Annual Excess', value: `${annualExportKwh.toLocaleString()} kWh` },
-          { label: 'Avg Sun Hours', value: `${avgSunHours.toFixed(1)} hrs/day` },
         ],
       },
       {
@@ -650,8 +618,8 @@ export default function SolarMonetization() {
         title: 'Mining Setup',
         items: [
           { label: 'Miner Model', value: minerName },
-          { label: 'Power', value: `${minerPower}W` },
-          { label: 'Hashrate', value: `${minerHashrate} TH/s` },
+          { label: 'Miner Specs', value: `${minerHashrate} TH/s @ ${minerPower}W` },
+          { label: 'Efficiency', value: `${(parseFloat(minerPower) / parseFloat(minerHashrate)).toFixed(1)} J/TH` },
         ],
       },
     ]
@@ -709,7 +677,7 @@ export default function SolarMonetization() {
         compensationType: compType.label,
       },
     }
-  }, [netMeteringResult, inputMode, minerType, solarEstimate, zipCode, effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, annualExportKwh, avgSunHours, compensationType, netMeteringRate, minerPower, minerHashrate])
+  }, [netMeteringResult, inputMode, minerType, solarEstimate, zipCode, effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, annualExportKwh, compensationType, netMeteringRate, minerPower, minerHashrate])
 
   // ============================================================================
   // Render
@@ -1303,6 +1271,21 @@ export default function SolarMonetization() {
               onChange={setMinerHashrate}
               suffix="TH/s"
             />
+            {/* Efficiency Display Card */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1">
+                <label className="text-sm font-medium text-surface-700 dark:text-surface-300">
+                  Efficiency
+                </label>
+                <SmartTooltip content="Miner efficiency measured in watts per terahash. Lower is better - more efficient miners extract more BTC value per kWh of solar energy consumed." />
+              </div>
+              <div className="h-[42px] px-3 flex items-center justify-between rounded-lg border border-surface-300 dark:border-surface-600 bg-surface-50 dark:bg-surface-700/50">
+                <span className="text-surface-900 dark:text-surface-100 font-medium">
+                  {miner.hashrateTH > 0 ? (miner.powerW / miner.hashrateTH).toFixed(1) : '—'}
+                </span>
+                <span className="text-surface-500 dark:text-surface-400 text-sm">W/TH</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1368,9 +1351,7 @@ export default function SolarMonetization() {
                   : formatKwh(miningResult.annualProductionKwh)}
               </div>
               <p className="text-sm text-surface-500 mt-1">
-                {inputMode === 'excess' && excessMiningData
-                  ? `${excessMiningData.avgSunHoursPerDay.toFixed(1)} avg sun hours/day`
-                  : `${miningResult.avgSunHoursPerDay.toFixed(1)} avg sun hours/day`}
+                {miner.hashrateTH > 0 ? `${(miner.powerW / miner.hashrateTH).toFixed(1)} J/TH efficiency` : 'N/A'}
               </p>
             </div>
 

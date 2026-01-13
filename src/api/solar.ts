@@ -89,14 +89,16 @@ export interface SolarEstimate {
   lat: number
   lon: number
 
-  // Production data
+  // Production data - THESE ARE USED FOR CALCULATIONS
   annualKwh: number           // Total annual production (kWh)
   monthlyKwh: number[]        // Monthly production (12 values)
   capacityFactor: number      // Capacity factor (%)
 
-  // Solar resource
-  avgSunHoursPerDay: number   // Average daily sun hours
-  monthlySunHours: number[]   // Monthly average sun hours (12 values)
+  // Solar resource - INFORMATIONAL ONLY, NOT USED FOR REVENUE CALCULATIONS
+  // Note: These are solar irradiance values (kWh/m²/day) from NREL, not operating hours.
+  // Revenue calculations derive directly from monthlyKwh using miner efficiency and hashvalue.
+  avgSunHoursPerDay: number   // Average daily solar irradiance (kWh/m²/day)
+  monthlySunHours: number[]   // Monthly solar irradiance (12 values, kWh/m²/day)
 }
 
 export interface SolarAPIError {

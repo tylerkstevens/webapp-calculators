@@ -1,150 +1,97 @@
 import { describe, it, expect } from 'vitest'
 import {
-  calculateDailySolarBtc,
-  calculateMonthlyBtcBreakdown,
-  calculateMaxMiners,
-  calculateSunHours,
+  calculateBtcFromKwh,
   calculateSolarMining,
   calculateNetMeteringComparison,
+  calculateMonthlyExcessMining,
   formatBtc,
   formatUsd,
   formatKwh,
   getMonthName,
-  BTCMetrics,
+  DAYS_IN_MONTH,
   MinerSpec,
 } from '../calculations/solar'
 
 // Standard test fixtures
-const standardBtcMetrics: BTCMetrics = {
-  btcPrice: 100000,
-  networkHashrate: 800e6, // 800 EH/s in TH/s
-  blockReward: 3.125,
-}
+const standardHashvalueSats = 50 // 50 sats/TH/day (typical hashvalue)
+const standardBtcPrice = 100000
 
 const standardMiner: MinerSpec = {
   name: 'Test Miner',
   powerW: 1000,
-  hashrateTH: 50,
+  hashrateTH: 50, // Efficiency: 20 J/TH
 }
 
-// Monthly sun hours for a typical location (approx 5 hours avg per day)
-const standardMonthlySunHours = [3.5, 4.0, 5.0, 5.5, 6.5, 7.0, 7.5, 7.0, 6.0, 5.0, 4.0, 3.5]
-
-// Monthly production in kWh for a 10kW system
+// Monthly production in kWh for a 10kW system (typical seasonal pattern)
 const standardMonthlyProduction = [
   800, 900, 1100, 1200, 1400, 1500, 1600, 1500, 1300, 1100, 900, 800
 ]
 
-describe('calculateDailySolarBtc', () => {
-  it('should calculate daily BTC based on sun hours', () => {
-    const avgSunHours = 5
-    const hashrateTH = 50
-    const dailyBtc = calculateDailySolarBtc(hashrateTH, avgSunHours, standardBtcMetrics)
+describe('calculateBtcFromKwh', () => {
+  it('should calculate BTC from kWh using the rate-based formula', () => {
+    const kwh = 1000
+    const efficiencyJTH = 20 // 20 J/TH (1000W / 50TH)
+    const hashvalueSats = 50
+    const days = 30
 
-    // Full day BTC = (50 / 800e6) * 144 * 3.125
-    const fullDayBtc = (50 / 800e6) * 144 * 3.125
-    // Adjusted for sun hours = fullDayBtc * (5 / 24)
-    const expectedBtc = fullDayBtc * (avgSunHours / 24)
+    const btc = calculateBtcFromKwh(kwh, efficiencyJTH, hashvalueSats, days)
 
-    expect(dailyBtc).toBeCloseTo(expectedBtc, 12)
+    // Manual calculation:
+    // avgPowerW = 1000 * 1000 / (30 * 24) = 1388.89 W
+    // avgHashrateTH = 1388.89 / 20 = 69.44 TH/s
+    // sats = 69.44 * 50 * 30 = 104,166.67 sats
+    // btc = 104,166.67 / 1e8 = 0.00104167
+    expect(btc).toBeCloseTo(0.00104167, 6)
   })
 
-  it('should scale linearly with sun hours', () => {
-    const btc5Hours = calculateDailySolarBtc(50, 5, standardBtcMetrics)
-    const btc10Hours = calculateDailySolarBtc(50, 10, standardBtcMetrics)
+  it('should scale linearly with kWh', () => {
+    const efficiencyJTH = 20
+    const hashvalueSats = 50
+    const days = 30
 
-    expect(btc10Hours).toBeCloseTo(btc5Hours * 2, 12)
+    const btc1000 = calculateBtcFromKwh(1000, efficiencyJTH, hashvalueSats, days)
+    const btc2000 = calculateBtcFromKwh(2000, efficiencyJTH, hashvalueSats, days)
+
+    expect(btc2000).toBeCloseTo(btc1000 * 2, 10)
   })
 
-  it('should scale linearly with hashrate', () => {
-    const btc50TH = calculateDailySolarBtc(50, 5, standardBtcMetrics)
-    const btc100TH = calculateDailySolarBtc(100, 5, standardBtcMetrics)
+  it('should scale linearly with hashvalue', () => {
+    const kwh = 1000
+    const efficiencyJTH = 20
+    const days = 30
 
-    expect(btc100TH).toBeCloseTo(btc50TH * 2, 12)
+    const btc50 = calculateBtcFromKwh(kwh, efficiencyJTH, 50, days)
+    const btc100 = calculateBtcFromKwh(kwh, efficiencyJTH, 100, days)
+
+    expect(btc100).toBeCloseTo(btc50 * 2, 10)
   })
 
-  it('should return 0 for 0 hashrate', () => {
-    const dailyBtc = calculateDailySolarBtc(0, 5, standardBtcMetrics)
-    expect(dailyBtc).toBe(0)
+  it('should produce more BTC with better efficiency (lower J/TH)', () => {
+    const kwh = 1000
+    const hashvalueSats = 50
+    const days = 30
+
+    const btcBadEfficiency = calculateBtcFromKwh(kwh, 40, hashvalueSats, days) // 40 J/TH
+    const btcGoodEfficiency = calculateBtcFromKwh(kwh, 20, hashvalueSats, days) // 20 J/TH
+
+    // Better efficiency (lower J/TH) means more hashrate per watt, more BTC
+    expect(btcGoodEfficiency).toBeCloseTo(btcBadEfficiency * 2, 10)
   })
 
-  it('should return 0 for 0 sun hours', () => {
-    const dailyBtc = calculateDailySolarBtc(50, 0, standardBtcMetrics)
-    expect(dailyBtc).toBe(0)
-  })
-})
-
-describe('calculateMonthlyBtcBreakdown', () => {
-  it('should return array of 12 monthly values', () => {
-    const breakdown = calculateMonthlyBtcBreakdown(50, standardMonthlySunHours, standardBtcMetrics)
-    expect(breakdown).toHaveLength(12)
+  it('should return 0 for 0 kWh', () => {
+    expect(calculateBtcFromKwh(0, 20, 50, 30)).toBe(0)
   })
 
-  it('should have higher BTC in summer months (more sun hours)', () => {
-    const breakdown = calculateMonthlyBtcBreakdown(50, standardMonthlySunHours, standardBtcMetrics)
-
-    // July (index 6) should be higher than January (index 0)
-    expect(breakdown[6]).toBeGreaterThan(breakdown[0])
+  it('should return 0 for 0 efficiency', () => {
+    expect(calculateBtcFromKwh(1000, 0, 50, 30)).toBe(0)
   })
 
-  it('should account for days in month', () => {
-    const breakdown = calculateMonthlyBtcBreakdown(50, standardMonthlySunHours, standardBtcMetrics)
-
-    // February (28 days) vs March (31 days) with similar sun hours
-    // March has more sun hours (5.0 vs 4.0) so should be higher
-    expect(breakdown[2]).toBeGreaterThan(breakdown[1])
+  it('should return 0 for 0 hashvalue', () => {
+    expect(calculateBtcFromKwh(1000, 20, 0, 30)).toBe(0)
   })
 
-  it('should return all zeros for 0 hashrate', () => {
-    const breakdown = calculateMonthlyBtcBreakdown(0, standardMonthlySunHours, standardBtcMetrics)
-    breakdown.forEach(btc => expect(btc).toBe(0))
-  })
-})
-
-describe('calculateMaxMiners', () => {
-  it('should calculate max miners based on system capacity', () => {
-    // 10kW system / 1000W miner = 10 miners
-    const maxMiners = calculateMaxMiners(10, 1000)
-    expect(maxMiners).toBe(10)
-  })
-
-  it('should floor the result', () => {
-    // 10kW / 1500W = 6.67 -> 6 miners
-    const maxMiners = calculateMaxMiners(10, 1500)
-    expect(maxMiners).toBe(6)
-  })
-
-  it('should return 0 for small system', () => {
-    // 0.5kW / 1000W = 0.5 -> 0 miners
-    const maxMiners = calculateMaxMiners(0.5, 1000)
-    expect(maxMiners).toBe(0)
-  })
-
-  it('should handle large systems', () => {
-    // 100kW / 3000W = 33.33 -> 33 miners
-    const maxMiners = calculateMaxMiners(100, 3000)
-    expect(maxMiners).toBe(33)
-  })
-})
-
-describe('calculateSunHours', () => {
-  it('should calculate average sun hours from annual production', () => {
-    // 10kW system producing 15000 kWh/year
-    // sunHours = 15000 / (10 * 365) = 4.11 hours/day
-    const sunHours = calculateSunHours(15000, 10)
-    expect(sunHours).toBeCloseTo(4.11, 2)
-  })
-
-  it('should return higher hours for higher production', () => {
-    const hours1 = calculateSunHours(10000, 10)
-    const hours2 = calculateSunHours(20000, 10)
-    expect(hours2).toBeCloseTo(hours1 * 2, 2)
-  })
-
-  it('should return lower hours for larger system (same production)', () => {
-    const hours5kw = calculateSunHours(10000, 5)
-    const hours10kw = calculateSunHours(10000, 10)
-    expect(hours5kw).toBeCloseTo(hours10kw * 2, 2)
+  it('should return 0 for 0 days', () => {
+    expect(calculateBtcFromKwh(1000, 20, 50, 0)).toBe(0)
   })
 })
 
@@ -153,77 +100,54 @@ describe('calculateSolarMining', () => {
 
   it('should return complete solar mining results', () => {
     const result = calculateSolarMining(
-      10, // 10kW system
       annualProduction,
       standardMonthlyProduction,
-      standardMonthlySunHours,
       standardMiner,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     expect(result.annualProductionKwh).toBe(annualProduction)
     expect(result.monthlyProductionKwh).toEqual(standardMonthlyProduction)
-    // New model: 100% utilization
-    expect(result.totalPowerW).toBe(10 * 1000) // Full system capacity
-    expect(result.totalHashrateTH).toBe((10 * 1000 / 1000) * 50) // Efficiency-based
+    expect(result.monthlyBtcBreakdown).toHaveLength(12)
+    expect(result.monthlyUsdBreakdown).toHaveLength(12)
   })
 
-  it('should use full system capacity', () => {
+  it('should calculate BTC directly from kWh', () => {
     const result = calculateSolarMining(
-      10,
       annualProduction,
       standardMonthlyProduction,
-      standardMonthlySunHours,
       standardMiner,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
-    // New model: always uses 100% of system capacity
-    expect(result.totalPowerW).toBe(10 * 1000)
-    expect(result.totalHashrateTH).toBe((10 * 1000 / standardMiner.powerW) * standardMiner.hashrateTH)
-  })
-
-  it('should calculate correct total hashrate based on efficiency', () => {
-    const result = calculateSolarMining(
-      10,
-      annualProduction,
-      standardMonthlyProduction,
-      standardMonthlySunHours,
-      standardMiner,
-      standardBtcMetrics
-    )
-
-    // New model: efficiency-based calculation
-    const systemPowerW = 10 * 1000
-    const expectedHashrate = (systemPowerW / standardMiner.powerW) * standardMiner.hashrateTH
-    expect(result.totalHashrateTH).toBe(expectedHashrate)
-    expect(result.totalPowerW).toBe(systemPowerW)
-  })
-
-  it('should calculate revenue based on actual solar production', () => {
-    const result = calculateSolarMining(
-      10,
-      annualProduction,
-      standardMonthlyProduction,
-      standardMonthlySunHours,
-      standardMiner,
-      standardBtcMetrics
-    )
-
-    // Revenue should be based on actual solar production hours, not 24/7 mining
+    // Revenue should be proportional to production
     expect(result.annualBtc).toBeGreaterThan(0)
     expect(result.annualUsd).toBeGreaterThan(0)
-    expect(result.effectiveRevenuePerKwh).toBeGreaterThan(0)
+  })
+
+  it('should have higher revenue in months with more production', () => {
+    const result = calculateSolarMining(
+      annualProduction,
+      standardMonthlyProduction,
+      standardMiner,
+      standardHashvalueSats,
+      standardBtcPrice
+    )
+
+    // July (index 6) has more production than January (index 0)
+    expect(result.monthlyBtcBreakdown[6]).toBeGreaterThan(result.monthlyBtcBreakdown[0])
+    expect(result.monthlyUsdBreakdown[6]).toBeGreaterThan(result.monthlyUsdBreakdown[0])
   })
 
   it('should have consistent monthly/annual breakdowns', () => {
     const result = calculateSolarMining(
-      10,
       annualProduction,
       standardMonthlyProduction,
-      standardMonthlySunHours,
       standardMiner,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     const sumMonthlyBtc = result.monthlyBtcBreakdown.reduce((a, b) => a + b, 0)
@@ -235,16 +159,46 @@ describe('calculateSolarMining', () => {
 
   it('should calculate efficiency metrics', () => {
     const result = calculateSolarMining(
-      10,
       annualProduction,
       standardMonthlyProduction,
-      standardMonthlySunHours,
       standardMiner,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     expect(result.effectiveRevenuePerKwh).toBeGreaterThan(0)
     expect(result.btcPerKwh).toBeGreaterThan(0)
+
+    // effectiveRevenuePerKwh = annualUsd / annualKwh
+    expect(result.effectiveRevenuePerKwh).toBeCloseTo(
+      result.annualUsd / annualProduction,
+      6
+    )
+  })
+
+  it('should use miner efficiency correctly', () => {
+    // More efficient miner should produce more BTC
+    const efficientMiner: MinerSpec = { name: 'Efficient', powerW: 1000, hashrateTH: 100 } // 10 J/TH
+    const inefficientMiner: MinerSpec = { name: 'Inefficient', powerW: 1000, hashrateTH: 50 } // 20 J/TH
+
+    const efficientResult = calculateSolarMining(
+      annualProduction,
+      standardMonthlyProduction,
+      efficientMiner,
+      standardHashvalueSats,
+      standardBtcPrice
+    )
+
+    const inefficientResult = calculateSolarMining(
+      annualProduction,
+      standardMonthlyProduction,
+      inefficientMiner,
+      standardHashvalueSats,
+      standardBtcPrice
+    )
+
+    // Efficient miner (10 J/TH) should earn 2x more than inefficient (20 J/TH)
+    expect(efficientResult.annualBtc).toBeCloseTo(inefficientResult.annualBtc * 2, 6)
   })
 })
 
@@ -254,8 +208,8 @@ describe('calculateNetMeteringComparison', () => {
       1000, // 1000 kWh excess
       0.10, // $0.10/kWh
       standardMiner,
-      5, // 5 sun hours
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     expect(result.netMeteringRevenue).toBe(100) // 1000 * 0.10
@@ -263,17 +217,17 @@ describe('calculateNetMeteringComparison', () => {
     expect(result.netMeteringRate).toBe(0.10)
   })
 
-  it('should calculate mining revenue from excess', () => {
+  it('should calculate mining revenue from excess kWh', () => {
     const result = calculateNetMeteringComparison(
       1000,
       0.10,
       standardMiner,
-      5,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     expect(result.miningBtc).toBeGreaterThan(0)
-    expect(result.miningRevenue).toBeCloseTo(result.miningBtc * 100000, 6)
+    expect(result.miningRevenue).toBeCloseTo(result.miningBtc * standardBtcPrice, 6)
   })
 
   it('should calculate advantage correctly', () => {
@@ -281,8 +235,8 @@ describe('calculateNetMeteringComparison', () => {
       1000,
       0.10,
       standardMiner,
-      5,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     expect(result.advantageUsd).toBeCloseTo(
@@ -296,8 +250,8 @@ describe('calculateNetMeteringComparison', () => {
       1000,
       0.10,
       standardMiner,
-      5,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     expect(result.advantageMultiplier).toBeCloseTo(
@@ -311,8 +265,8 @@ describe('calculateNetMeteringComparison', () => {
       1000,
       0.01, // Very low net metering rate
       standardMiner,
-      5,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     if (result.miningRevenue > result.netMeteringRevenue) {
@@ -325,12 +279,69 @@ describe('calculateNetMeteringComparison', () => {
       1000,
       0,
       standardMiner,
-      5,
-      standardBtcMetrics
+      standardHashvalueSats,
+      standardBtcPrice
     )
 
     expect(result.netMeteringRevenue).toBe(0)
     expect(result.advantageMultiplier).toBe(0) // Division by zero protection
+  })
+})
+
+describe('calculateMonthlyExcessMining', () => {
+  const monthlyExportKwh = [100, 80, 120, 150, 200, 250, 300, 280, 220, 160, 100, 80]
+
+  it('should return 12 monthly values', () => {
+    const result = calculateMonthlyExcessMining(
+      monthlyExportKwh,
+      standardMiner,
+      standardHashvalueSats,
+      standardBtcPrice
+    )
+
+    expect(result.monthlyBtc).toHaveLength(12)
+    expect(result.monthlyUsd).toHaveLength(12)
+  })
+
+  it('should have proportional revenue to export kWh', () => {
+    const result = calculateMonthlyExcessMining(
+      monthlyExportKwh,
+      standardMiner,
+      standardHashvalueSats,
+      standardBtcPrice
+    )
+
+    // July (index 6) has most export, should have highest revenue
+    const maxBtcIndex = result.monthlyBtc.indexOf(Math.max(...result.monthlyBtc))
+    expect(maxBtcIndex).toBe(6)
+  })
+
+  it('should correctly convert BTC to USD', () => {
+    const result = calculateMonthlyExcessMining(
+      monthlyExportKwh,
+      standardMiner,
+      standardHashvalueSats,
+      standardBtcPrice
+    )
+
+    result.monthlyBtc.forEach((btc, i) => {
+      expect(result.monthlyUsd[i]).toBeCloseTo(btc * standardBtcPrice, 6)
+    })
+  })
+})
+
+describe('DAYS_IN_MONTH', () => {
+  it('should have 12 values', () => {
+    expect(DAYS_IN_MONTH).toHaveLength(12)
+  })
+
+  it('should have correct days for each month', () => {
+    expect(DAYS_IN_MONTH[0]).toBe(31) // January
+    expect(DAYS_IN_MONTH[1]).toBe(28) // February (non-leap)
+    expect(DAYS_IN_MONTH[2]).toBe(31) // March
+    expect(DAYS_IN_MONTH[3]).toBe(30) // April
+    expect(DAYS_IN_MONTH[6]).toBe(31) // July
+    expect(DAYS_IN_MONTH[11]).toBe(31) // December
   })
 })
 
