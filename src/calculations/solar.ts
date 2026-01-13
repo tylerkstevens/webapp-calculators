@@ -1,11 +1,19 @@
 /**
  * Solar monetization calculations - Mining revenue from solar production.
  *
- * These calculations help users understand the potential bitcoin mining
- * revenue from their solar PV system.
+ * Core formula: monthly_sats = (kWh × 1000 / efficiency_J_TH) × (hashvalue_sats / 24)
+ *
+ * This calculator answers: "What if all my solar energy was mined?"
+ * Only miner efficiency matters - not power or hashrate individually.
  */
 
 import { MinerSpec, MINER_PRESETS, DEFAULT_CUSTOM_MINER } from './hashrate'
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+export const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 // ============================================================================
 // Types
@@ -15,17 +23,10 @@ export interface SolarMiningResult {
   // Solar production
   annualProductionKwh: number
   monthlyProductionKwh: number[]
-  avgSunHoursPerDay: number
-
-  // Mining capacity (assumes 100% solar utilization)
-  totalPowerW: number
-  totalHashrateTH: number
 
   // Mining revenue
-  dailyBtc: number
   monthlyBtc: number
   annualBtc: number
-  dailyUsd: number
   monthlyUsd: number
   annualUsd: number
 
@@ -35,7 +36,7 @@ export interface SolarMiningResult {
 
   // Efficiency metrics
   effectiveRevenuePerKwh: number  // $/kWh earned from mining
-  btcPerKwh: number               // BTC earned per kWh (in sats)
+  btcPerKwh: number               // sats earned per kWh
 }
 
 export interface NetMeteringComparison {
@@ -54,12 +55,6 @@ export interface NetMeteringComparison {
   recommendMining: boolean       // true if mining is more profitable
 }
 
-export interface BTCMetrics {
-  btcPrice: number
-  networkHashrate: number   // TH/s
-  blockReward: number       // 3.125 BTC
-}
-
 // ============================================================================
 // Re-export miner presets
 // ============================================================================
@@ -68,144 +63,90 @@ export { MINER_PRESETS, DEFAULT_CUSTOM_MINER }
 export type { MinerSpec }
 
 // ============================================================================
-// Core Calculations
+// Core Calculation
 // ============================================================================
 
 /**
- * Calculate daily BTC mining based on hashrate and sun hours.
+ * Calculate BTC revenue from kWh using the rate-based formula.
  *
- * @param hashrateTH - Total hashrate in TH/s
- * @param sunHoursPerDay - Average sun hours per day
- * @param btcMetrics - Current BTC network metrics
- * @returns Daily BTC earned
+ * Formula: sats = (kWh × 1000 / efficiency_J_TH) × (hashvalue_sats / 24)
+ *
+ * This treats kWh as average power over the period, converting to equivalent
+ * hashrate, then multiplying by hashvalue to get revenue.
+ *
+ * @param kwh - Energy in kilowatt-hours
+ * @param efficiencyJTH - Miner efficiency in J/TH (watts per terahash)
+ * @param hashvalueSats - Hashvalue in sats/TH/day
+ * @param days - Number of days in the period
+ * @returns BTC earned
  */
-export function calculateDailySolarBtc(
-  hashrateTH: number,
-  sunHoursPerDay: number,
-  btcMetrics: BTCMetrics
+export function calculateBtcFromKwh(
+  kwh: number,
+  efficiencyJTH: number,
+  hashvalueSats: number,
+  days: number
 ): number {
-  // Blocks per day (approximately 144)
-  const blocksPerDay = 144
+  if (kwh <= 0 || efficiencyJTH <= 0 || hashvalueSats <= 0 || days <= 0) {
+    return 0
+  }
 
-  // User's share of network hashrate
-  const userShare = hashrateTH / btcMetrics.networkHashrate
-
-  // Daily BTC if running 24 hours
-  const dailyBtc24h = userShare * blocksPerDay * btcMetrics.blockReward
-
-  // Adjust for sun hours (only mining during daylight)
-  const dailyBtc = dailyBtc24h * (sunHoursPerDay / 24)
-
-  return dailyBtc
+  const totalHours = days * 24
+  // Average power in watts over the period
+  const avgPowerW = (kwh * 1000) / totalHours
+  // Equivalent hashrate at this power level
+  const avgHashrateTH = avgPowerW / efficiencyJTH
+  // BTC earned (hashvalue is sats/TH/day)
+  const sats = avgHashrateTH * hashvalueSats * days
+  return sats / 1e8
 }
 
-/**
- * Calculate monthly BTC breakdown based on monthly sun hours.
- *
- * @param hashrateTH - Total hashrate in TH/s
- * @param monthlySunHours - Array of 12 monthly sun hours values
- * @param btcMetrics - Current BTC network metrics
- * @returns Array of 12 monthly BTC values
- */
-export function calculateMonthlyBtcBreakdown(
-  hashrateTH: number,
-  monthlySunHours: number[],
-  btcMetrics: BTCMetrics
-): number[] {
-  const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-
-  return monthlySunHours.map((sunHours, index) => {
-    const dailyBtc = calculateDailySolarBtc(hashrateTH, sunHours, btcMetrics)
-    return dailyBtc * daysInMonth[index]
-  })
-}
-
-/**
- * Calculate max miners a solar system can support.
- *
- * @param systemCapacityKw - Solar system size in kW
- * @param minerPowerW - Power per miner in watts
- * @returns Maximum number of miners
- */
-export function calculateMaxMiners(
-  systemCapacityKw: number,
-  minerPowerW: number
-): number {
-  const systemWatts = systemCapacityKw * 1000
-  return Math.floor(systemWatts / minerPowerW)
-}
-
-/**
- * Calculate sun hours from production data.
- *
- * @param annualKwh - Annual production in kWh
- * @param systemCapacityKw - System size in kW
- * @returns Average sun hours per day
- */
-export function calculateSunHours(
-  annualKwh: number,
-  systemCapacityKw: number
-): number {
-  // sun_hours = annual_kwh / (system_kw * 365)
-  return annualKwh / (systemCapacityKw * 365)
-}
+// ============================================================================
+// Main Calculation Functions
+// ============================================================================
 
 /**
  * Calculate complete solar mining results.
  *
- * @param systemCapacityKw - Solar system size in kW
  * @param annualProductionKwh - Annual solar production in kWh
  * @param monthlyProductionKwh - Monthly production breakdown (12 values)
- * @param monthlySunHours - Monthly sun hours (12 values)
- * @param miner - Miner specifications
- * @param btcMetrics - Current BTC network metrics
- * @returns Complete solar mining calculation results (assumes 100% solar utilization)
+ * @param miner - Miner specifications (only efficiency is used)
+ * @param hashvalueSats - Hashvalue in sats/TH/day
+ * @param btcPrice - Current BTC price in USD
+ * @returns Complete solar mining calculation results
  */
 export function calculateSolarMining(
-  systemCapacityKw: number,
   annualProductionKwh: number,
   monthlyProductionKwh: number[],
-  monthlySunHours: number[],
   miner: MinerSpec,
-  btcMetrics: BTCMetrics
+  hashvalueSats: number,
+  btcPrice: number
 ): SolarMiningResult {
-  // Calculate sun hours from production if not provided
-  const avgSunHoursPerDay = calculateSunHours(annualProductionKwh, systemCapacityKw)
+  // Calculate efficiency from miner specs
+  const efficiencyJTH = miner.powerW / miner.hashrateTH
 
-  // Mining capacity - assumes 100% solar utilization
-  // Calculate total hashrate based on miner efficiency and all available solar power
-  // totalPowerW represents the equivalent mining power at the miner's efficiency
-  const totalPowerW = systemCapacityKw * 1000 // Use full system capacity
-  const totalHashrateTH = (totalPowerW / miner.powerW) * miner.hashrateTH
+  // Calculate monthly BTC breakdown directly from kWh
+  const monthlyBtcBreakdown = monthlyProductionKwh.map((kwh, i) => {
+    return calculateBtcFromKwh(kwh, efficiencyJTH, hashvalueSats, DAYS_IN_MONTH[i])
+  })
 
-  // Daily mining revenue
-  const dailyBtc = calculateDailySolarBtc(totalHashrateTH, avgSunHoursPerDay, btcMetrics)
-  const dailyUsd = dailyBtc * btcMetrics.btcPrice
-
-  // Monthly breakdown
-  const monthlyBtcBreakdown = calculateMonthlyBtcBreakdown(totalHashrateTH, monthlySunHours, btcMetrics)
-  const monthlyUsdBreakdown = monthlyBtcBreakdown.map(btc => btc * btcMetrics.btcPrice)
+  // Convert to USD
+  const monthlyUsdBreakdown = monthlyBtcBreakdown.map(btc => btc * btcPrice)
 
   // Annual totals
   const annualBtc = monthlyBtcBreakdown.reduce((sum, btc) => sum + btc, 0)
-  const annualUsd = annualBtc * btcMetrics.btcPrice
+  const annualUsd = annualBtc * btcPrice
   const monthlyBtc = annualBtc / 12
   const monthlyUsd = annualUsd / 12
 
-  // Efficiency metrics - based on actual solar production
+  // Efficiency metrics
   const effectiveRevenuePerKwh = annualProductionKwh > 0 ? annualUsd / annualProductionKwh : 0
-  const btcPerKwh = annualProductionKwh > 0 ? (annualBtc / annualProductionKwh) * 1e8 : 0 // in sats
+  const btcPerKwh = annualProductionKwh > 0 ? (annualBtc / annualProductionKwh) * 1e8 : 0
 
   return {
     annualProductionKwh,
     monthlyProductionKwh,
-    avgSunHoursPerDay,
-    totalPowerW,
-    totalHashrateTH,
-    dailyBtc,
     monthlyBtc,
     annualBtc,
-    dailyUsd,
     monthlyUsd,
     annualUsd,
     monthlyBtcBreakdown,
@@ -220,32 +161,25 @@ export function calculateSolarMining(
  *
  * @param excessKwh - Annual excess kWh sent to grid
  * @param netMeteringRate - Rate utility pays per kWh ($/kWh)
- * @param miner - Miner specifications
- * @param avgSunHoursPerDay - Average sun hours per day
- * @param btcMetrics - Current BTC network metrics
+ * @param miner - Miner specifications (only efficiency is used)
+ * @param hashvalueSats - Hashvalue in sats/TH/day
+ * @param btcPrice - Current BTC price in USD
  * @returns Net metering vs mining comparison
  */
 export function calculateNetMeteringComparison(
   excessKwh: number,
   netMeteringRate: number,
   miner: MinerSpec,
-  avgSunHoursPerDay: number,
-  btcMetrics: BTCMetrics
+  hashvalueSats: number,
+  btcPrice: number
 ): NetMeteringComparison {
   // Net metering revenue
   const netMeteringRevenue = excessKwh * netMeteringRate
 
-  // Calculate how many hours of mining the excess kWh represents
-  const minerKwh = miner.powerW / 1000
-  const miningHours = excessKwh / minerKwh
-
-  // Calculate BTC mined during those hours
-  // First, get hourly BTC rate based on sun hours model
-  const dailyBtc = calculateDailySolarBtc(miner.hashrateTH, avgSunHoursPerDay, btcMetrics)
-  const hourlyBtcRate = dailyBtc / avgSunHoursPerDay
-
-  const miningBtc = hourlyBtcRate * miningHours
-  const miningRevenue = miningBtc * btcMetrics.btcPrice
+  // Mining revenue using same kWh-based formula
+  const efficiencyJTH = miner.powerW / miner.hashrateTH
+  const miningBtc = calculateBtcFromKwh(excessKwh, efficiencyJTH, hashvalueSats, 365)
+  const miningRevenue = miningBtc * btcPrice
 
   // Comparison
   const advantageUsd = miningRevenue - netMeteringRevenue
@@ -262,6 +196,32 @@ export function calculateNetMeteringComparison(
     advantageMultiplier,
     recommendMining,
   }
+}
+
+/**
+ * Calculate monthly BTC breakdown for excess energy.
+ *
+ * @param monthlyExportKwh - Monthly excess kWh (12 values)
+ * @param miner - Miner specifications
+ * @param hashvalueSats - Hashvalue in sats/TH/day
+ * @param btcPrice - Current BTC price in USD
+ * @returns Object with monthly BTC and USD arrays
+ */
+export function calculateMonthlyExcessMining(
+  monthlyExportKwh: number[],
+  miner: MinerSpec,
+  hashvalueSats: number,
+  btcPrice: number
+): { monthlyBtc: number[], monthlyUsd: number[] } {
+  const efficiencyJTH = miner.powerW / miner.hashrateTH
+
+  const monthlyBtc = monthlyExportKwh.map((kwh, i) => {
+    return calculateBtcFromKwh(kwh, efficiencyJTH, hashvalueSats, DAYS_IN_MONTH[i])
+  })
+
+  const monthlyUsd = monthlyBtc.map(btc => btc * btcPrice)
+
+  return { monthlyBtc, monthlyUsd }
 }
 
 // ============================================================================

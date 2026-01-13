@@ -106,7 +106,10 @@ export default function DualAxisChart({
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget
     const rect = svg.getBoundingClientRect()
-    const x = e.clientX - rect.left - padding.left
+
+    // Scale mouse position from actual rendered size to viewBox coordinates
+    const scaleRatio = width / rect.width
+    const x = (e.clientX - rect.left) * scaleRatio - padding.left
 
     const barWidth = chartWidth / monthLabels.length
     const monthIndex = Math.floor(x / barWidth)
@@ -231,23 +234,46 @@ export default function DualAxisChart({
                 } transition-colors`}
                 rx="4"
               />
-              {/* Bar labels */}
-              <text
-                x={x + w / 2}
-                y={y - 20}
-                textAnchor="middle"
-                className="text-xs font-medium fill-surface-700 dark:fill-surface-300"
-              >
-                {formatUSD(value)}
-              </text>
-              <text
-                x={x + w / 2}
-                y={y - 8}
-                textAnchor="middle"
-                className="text-[10px] fill-surface-500 dark:fill-surface-400"
-              >
-                {formatSats(revenueDataSats[index])}
-              </text>
+              {/* Bar labels - inside bar for tall bars, above for short bars */}
+              {h >= 40 ? (
+                <>
+                  <text
+                    x={x + w / 2}
+                    y={y + 18}
+                    textAnchor="middle"
+                    className="text-xs font-medium fill-white"
+                  >
+                    {formatUSD(value)}
+                  </text>
+                  <text
+                    x={x + w / 2}
+                    y={y + 30}
+                    textAnchor="middle"
+                    className="text-[10px] fill-white/80"
+                  >
+                    {formatSats(revenueDataSats[index])}
+                  </text>
+                </>
+              ) : (
+                <>
+                  <text
+                    x={x + w / 2}
+                    y={y - 20}
+                    textAnchor="middle"
+                    className="text-xs font-medium fill-surface-700 dark:fill-surface-300"
+                  >
+                    {formatUSD(value)}
+                  </text>
+                  <text
+                    x={x + w / 2}
+                    y={y - 8}
+                    textAnchor="middle"
+                    className="text-[10px] fill-surface-500 dark:fill-surface-400"
+                  >
+                    {formatSats(revenueDataSats[index])}
+                  </text>
+                </>
+              )}
             </g>
           )
         })}
@@ -353,8 +379,8 @@ export default function DualAxisChart({
 
       {/* Caption */}
       <p className="text-sm text-center text-surface-600 dark:text-surface-400 italic">
-        Monthly mining revenue varies with seasonal sun hours. Chart assumes static BTC price and
-        network conditions.
+        Monthly mining revenue varies with seasonal solar production. Chart assumes static BTC price
+        and network conditions.
       </p>
     </div>
   )

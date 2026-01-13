@@ -1,7 +1,7 @@
 # Exergy Heat Calculator Web App - Architecture Document
 
-**Version:** 1.1
-**Last Updated:** 2026-01-08
+**Version:** 1.2
+**Last Updated:** 2026-01-13
 **Status:** Production (All Phases Complete)
 **Reference:** [SPEC.md](./SPEC.md)
 
@@ -381,17 +381,15 @@ const [networkHashrateOverride, setNetworkHashrateOverride] = useState<string>('
 ```typescript
 // Calculation results - recomputed when dependencies change
 const miningResult = useMemo(() => {
-  if (!btcMetrics || annualKwh <= 0) return null
+  if (!hasRequiredData || annualKwh <= 0 || !effectiveHashvalue || !effectiveBtcPrice) return null
   return calculateSolarMining(
-    systemKw,
     annualKwh,
     monthlyKwh,
-    sunHours,
     miner,
-    actualQuantity,
-    btcMetrics
+    effectiveHashvalue,
+    effectiveBtcPrice
   )
-}, [btcMetrics, systemKw, annualKwh, monthlyKwh, sunHours, miner, actualQuantity])
+}, [hasRequiredData, annualKwh, monthlyKwh, miner, effectiveHashvalue, effectiveBtcPrice])
 ```
 
 ### State Update Patterns
@@ -458,37 +456,43 @@ useEffect(() => {
 ### Solar Calculation Pipeline
 
 ```
-Input Parameters
+Input Parameters (monthlyKwh[], miner, hashvalueSats, btcPrice)
     ↓
 ┌────────────────────────────────────────┐
-│ 1. Monthly Distribution                │
-│    - Annual → Monthly (if needed)      │
-│    - Apply seasonal pattern            │
+│ 1. Monthly Distribution (if needed)    │
+│    - Annual → Monthly using NREL ratios│
+│    - Or generic seasonal factors       │
 └────────────┬───────────────────────────┘
              ↓
 ┌────────────────────────────────────────┐
-│ 2. Mining Hours Calculation            │
-│    mining_hours = total_kWh / miner_kW │
+│ 2. Calculate Miner Efficiency          │
+│    efficiency_J_TH = powerW / hashrateTH│
 └────────────┬───────────────────────────┘
              ↓
 ┌────────────────────────────────────────┐
-│ 3. Hashrate-Hours Calculation          │
-│    hashrate_hrs = miner_TH × hours     │
+│ 3. For Each Month: kWh → BTC           │
+│    avg_power_W = (kWh × 1000) / hours  │
+│    avg_hashrate = avg_power / efficiency│
+│    sats = hashrate × hashvalue × days  │
+│    btc = sats / 1e8                    │
 └────────────┬───────────────────────────┘
              ↓
 ┌────────────────────────────────────────┐
-│ 4. BTC Revenue Calculation             │
-│    btc = hashrate_hrs × network_share  │
-│    usd = btc × btc_price               │
+│ 4. BTC to USD Conversion               │
+│    monthly_usd = monthly_btc × btcPrice│
+│    annual_usd = sum(monthly_usd)       │
 └────────────┬───────────────────────────┘
              ↓
 ┌────────────────────────────────────────┐
 │ 5. Per-kWh Metrics                     │
-│    revenue_per_kwh = usd / total_kWh   │
+│    revenue_per_kwh = annual_usd / kWh  │
 │    sats_per_kwh = (btc × 1e8) / kWh    │
 └────────────┬───────────────────────────┘
              ↓
      SolarMiningResult
+
+Key Insight: Only miner efficiency matters (J/TH)
+             Revenue is proportional to kWh
 ```
 
 ### Hashrate Heating Calculation Pipeline
@@ -538,15 +542,21 @@ Input Parameters
 
 **src/calculations/solar.ts**
 ```typescript
-// Core solar mining calculation
+// Core function: Calculate BTC from kWh using rate-based formula
+export function calculateBtcFromKwh(
+  kwh: number,
+  efficiencyJTH: number,
+  hashvalueSats: number,
+  days: number
+): number
+
+// Main solar mining calculation
 export function calculateSolarMining(
-  systemCapacityKw: number,
   annualProductionKwh: number,
   monthlyProductionKwh: number[],
-  monthlySunHours: number[],
   miner: MinerSpec,
-  minerQuantity: number,  // Note: Will be removed per spec
-  btcMetrics: BTCMetrics
+  hashvalueSats: number,
+  btcPrice: number
 ): SolarMiningResult
 
 // Net metering comparison
@@ -554,15 +564,17 @@ export function calculateNetMeteringComparison(
   excessKwh: number,
   netMeteringRate: number,
   miner: MinerSpec,
-  avgSunHoursPerDay: number,
-  btcMetrics: BTCMetrics
+  hashvalueSats: number,
+  btcPrice: number
 ): NetMeteringComparison
 
-// Helper: Calculate sun hours from production
-export function calculateSunHours(
-  annualKwh: number,
-  systemCapacityKw: number
-): number
+// Monthly excess energy mining (for excess mode chart)
+export function calculateMonthlyExcessMining(
+  monthlyExportKwh: number[],
+  miner: MinerSpec,
+  hashvalueSats: number,
+  btcPrice: number
+): { monthlyBtc: number[], monthlyUsd: number[] }
 ```
 
 **src/calculations/hashrate.ts**
@@ -988,27 +1000,35 @@ useEffect(() => {
 
 ---
 
-### Decision 6: Miner Quantity Removal (Solar Calculator)
+### Decision 6: kWh-Based Formula (Solar Calculator)
 
-**Decision: Remove miner quantity input**
+**Decision: Calculate revenue directly from kWh using hashvalue**
 
-**Rationale (from SPEC):**
+**Rationale:**
 - Solar never generates peak flux consistently
-- Confusing UX with auto-calculated "max miners"
-- Simplified calculation: all power → mining at selected efficiency
-- Clearer messaging about ideal vs. real-world scenarios
+- Sun hours-based calculation was conceptually incorrect
+- kWh is the primary input - revenue should derive directly from it
+- Only miner efficiency (J/TH) matters, not power or hashrate individually
+- Clearer "what if all my solar energy was mined" messaging
 
-**Implementation Change:**
+**Implementation:**
 ```typescript
-// Before: Calculate max miners, allow override
-const maxMiners = calculateMaxMiners(systemKw, miner.powerW)
-const actualQuantity = quantityOverride ? minerQuantity : maxMiners
+// Core formula: kWh → BTC using efficiency and hashvalue
+const efficiencyJTH = miner.powerW / miner.hashrateTH
+const totalHours = days * 24
+const avgPowerW = (kwh * 1000) / totalHours
+const avgHashrateTH = avgPowerW / efficiencyJTH
+const sats = avgHashrateTH * hashvalueSats * days
+const btc = sats / 1e8
 
-// After: Assume all energy goes to mining
-// Calculate revenue directly from kWh and miner efficiency
-mining_hours = total_kWh / (miner_power_kW)
-hashrate_hours = miner_hashrate_TH × mining_hours
+// Or equivalently (simplified):
+sats = (kWh × 1000 / efficiency_J_TH) × (hashvalue_sats / 24)
 ```
+
+**Key Insight:**
+- Hashvalue already incorporates network difficulty and transaction fees
+- Revenue is always proportional to kWh input
+- Chart bars and generation line are always proportional (same source)
 
 ---
 
@@ -1287,7 +1307,7 @@ src/
 **Completion Date:** 2026-01-08
 
 **Accomplishments:**
-- ✅ **103 tests passing** across 3 test suites
+- ✅ **100 tests passing** across 3 test suites
 - ✅ **100% statement coverage** on calculation logic
 - ✅ **100% function coverage**
 - ✅ **88.88% branch coverage**
@@ -1297,14 +1317,14 @@ src/
 
 **Files Created:**
 - `src/test/hashrate.test.ts` (37 tests)
-- `src/test/solar.test.ts` (42 tests)
+- `src/test/solar.test.ts` (39 tests) - kWh-based formula tests
 - `src/test/pdf.test.ts` (24 tests)
 - `vitest.config.ts`
 
 **Test Coverage Details:**
 - `hashrate.ts`: 100% statements, 86.95% branches
 - `solar.ts`: 100% statements, 90.9% branches
-- All edge cases covered (R=1, R>1, infinity, zero values)
+- All edge cases covered (R=1, R>1, infinity, zero values, efficiency scaling)
 
 ---
 
@@ -1469,17 +1489,18 @@ These architectural considerations are documented but not currently planned:
 
 ### Current Production Status
 
-**Version:** 1.1 (Production)
-**Last Updated:** 2026-01-08
-**Implementation:** All 8 phases complete
+**Version:** 1.2 (Production)
+**Last Updated:** 2026-01-13
+**Implementation:** All 8 phases complete + Solar formula refactor
 
 ### Key Achievements
 
 1. **Calculation Engine**
    - Pure function architecture with 100% test coverage
    - COPe calculation with infinity handling
-   - Solar mining revenue calculation with multiple input modes
+   - Solar mining revenue calculation using kWh-based formula with hashvalue
    - Net metering comparison logic
+   - Key insight: Only miner efficiency (J/TH) matters for solar mining revenue
 
 2. **User Interface**
    - Two comprehensive calculators (Solar Monetization, Hashrate Heating)
@@ -1495,7 +1516,7 @@ These architectural considerations are documented but not currently planned:
    - Transaction fee-aware calculations
 
 4. **Quality Assurance**
-   - 103 passing unit tests
+   - 100 passing unit tests
    - 100% statement coverage on calculations
    - Comprehensive edge case handling
    - Validated against real-world data
@@ -1505,20 +1526,33 @@ These architectural considerations are documented but not currently planned:
    - Matches on-screen calculations exactly
    - Comprehensive explanations and branding
 
-### Recent Enhancements (Phase 2 Completion)
+### Recent Enhancements (2026-01-13 Solar Formula Refactor)
 
-**Solar Calculator Excess Mode Improvements:**
-- Added dual-axis chart showing monthly revenue and excess generation
-- Fixed chart label clipping for peak months (50px top padding)
-- Implemented 2x2 grid layout for result cards
-- Added `excessMiningData` calculation for excess-specific metrics
-- Removed unnecessary UI elements (empty states, mining details card)
-- Conditional data display: full system vs excess-only
+**Solar Calculator Calculation Overhaul:**
+- Replaced sun hours-based calculation with kWh-based formula
+- Revenue now derived directly from kWh using hashvalue (sats/TH/day)
+- Only miner efficiency (J/TH) matters - not power or hashrate individually
+- Chart bars now always proportional to generation line (both from same kWh source)
+- Fixed chart hover scaling for viewBox coordinates
+- Labels positioned inside bars for tall bars, above for short bars
+
+**Removed:**
+- `calculateDailySolarBtc()` - used sun hours
+- `calculateMonthlyBtcBreakdown()` - used sun hours
+- `calculateSunHours()` - no longer needed
+- `BTCMetrics` type - replaced with direct hashvalue usage
+- `sunHours` and `avgSunHours` memos in SolarMonetization.tsx
+
+**Added:**
+- `calculateBtcFromKwh()` - core formula using efficiency and hashvalue
+- `calculateMonthlyExcessMining()` - for excess mode monthly chart
 
 **File Changes:**
-- `src/components/DualAxisChart.tsx` - Created with hover interactivity
-- `src/pages/SolarMonetization.tsx` - Major refactor for excess mode
-- `src/calculations/solar.ts` - Removed miner quantity parameter
+- `src/calculations/solar.ts` - Complete rewrite with kWh-based formula
+- `src/pages/SolarMonetization.tsx` - Major refactor to use hashvalue directly
+- `src/components/DualAxisChart.tsx` - Updated hover scaling and label positioning
+- `src/test/solar.test.ts` - Rewritten for new API (39 tests)
+- `src/api/solar.ts` - Added clarifying comments for sun hours fields
 
 ### Architecture Highlights
 
@@ -1541,6 +1575,7 @@ These architectural considerations are documented but not currently planned:
 - All phases of the implementation roadmap are complete
 - Test coverage maintains 100% on calculation logic
 - Documentation (SPEC.md, ARCHITECTURE.md) updated to reflect current state
+- Solar formula refactored from sun hours-based to kWh-based calculation (2026-01-13)
 - Future enhancements documented in "Out of Scope" sections
 - Ready for production deployment
 
