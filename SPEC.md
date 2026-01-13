@@ -1,7 +1,7 @@
 # Exergy Heat Calculator Web App - Technical Specification
 
-**Version:** 1.1
-**Last Updated:** 2026-01-08
+**Version:** 1.2
+**Last Updated:** 2026-01-13
 **Status:** Production (Live)
 
 ---
@@ -146,32 +146,40 @@ The calculator has three distinct input modes:
 
 ### Calculation Logic
 
-#### Simplified Revenue Calculation (No Miner Quantity)
+#### Core Revenue Formula (kWh-Based with Hashvalue)
+
+The calculator answers: **"What if all my solar energy was mined?"**
+
+Only miner efficiency (J/TH) matters - not power or hashrate individually. Revenue is derived directly from kWh production using the live hashvalue (sats/TH/day) from Braiins API.
+
 ```
-For Total Production Modes (Estimate/Production):
-  1. Convert annual kWh to equivalent mining hours:
-     mining_hours = total_kWh / (miner_power_kW)
-
-  2. Calculate total hashrate-hours:
-     hashrate_hours = miner_hashrate_TH × mining_hours
-
-  3. Calculate BTC earned:
-     daily_btc_per_TH = (144 blocks × 3.125 BTC) / network_hashrate_TH
-     total_btc = daily_btc_per_TH × hashrate_hours / 24
-
-  4. Calculate revenue:
-     revenue_usd = total_btc × btc_price
-
-For Excess Energy Mode:
-  - Same calculation but using excess kWh instead of total production
-  - Compare mining revenue to (excess_kWh × net_metering_rate)
+For each month:
+  total_hours = days_in_month × 24
+  avg_power_W = (monthly_kWh × 1000) / total_hours
+  avg_hashrate_TH = avg_power_W / efficiency_J_TH
+  monthly_sats = avg_hashrate_TH × hashvalue_sats × days_in_month
+  monthly_btc = monthly_sats / 1e8
 ```
+
+Or equivalently (simplified formula):
+```
+monthly_sats = (monthly_kWh × 1000 / efficiency_J_TH) × (hashvalue_sats / 24)
+```
+
+**For Total Production Modes (Estimate/Production):**
+- Use monthly kWh from NREL or user input
+- Apply formula above to calculate monthly BTC
+- Sum for annual total
+
+**For Excess Energy Mode:**
+- Same formula but using monthly excess kWh
+- Compare mining revenue to (excess_kWh × net_metering_rate)
 
 #### Monthly Distribution
-- **Estimate mode**: Use NREL monthly sun hours pattern
-- **Production mode with annual input**: Distribute by location's sun hours (if available) or generic seasonal factors
+- **Estimate mode**: Use NREL monthly production directly (already location-specific)
+- **Production mode with annual input**: Distribute by NREL's monthly production ratios (if available) or generic seasonal factors
 - **Production mode with monthly input**: Use user's exact monthly values
-- **Excess mode with annual input**: Distribute by same pattern as production (conservative assumption)
+- **Excess mode with annual input**: Distribute by NREL production ratios or generic seasonal factors (excess correlates with production)
 - **Excess mode with monthly input**: Use user's exact monthly values
 
 ### Bitcoin Network Data (Two-Knob Override System)
@@ -209,8 +217,8 @@ All result sections have consistent structure regardless of mode:
 **Result Cards** (2x2 grid layout using `grid grid-cols-1 sm:grid-cols-2`):
 1. **Annual Production** (or "Annual Excess" for Excess mode)
    - Total kWh annually
-   - Avg sun hours per day
-   - Tooltip: "Total solar energy available for mining. Based on your location's sun hours and system size. Higher sun hours mean more mining opportunity."
+   - Miner efficiency (J/TH)
+   - Tooltip: "Total solar energy available for mining. Revenue is calculated directly from kWh production using your miner's efficiency."
 
 2. **Annual BTC Earnings**
    - BTC amount + sats
@@ -224,7 +232,7 @@ All result sections have consistent structure regardless of mode:
    - USD value
    - Shows full system average in Estimate/Production modes
    - Shows excess-only average in Excess mode
-   - Tooltip: "Average monthly mining revenue. Summer months typically earn more due to longer sun hours. Remember this assumes current BTC price and network conditions throughout the year."
+   - Tooltip: "Average monthly mining revenue. Summer months typically earn more due to higher solar production. Remember this assumes current BTC price and network conditions throughout the year."
 
 4. **Revenue per kWh**
    - $/kWh and sats/kWh
@@ -242,14 +250,15 @@ All result sections have consistent structure regardless of mode:
 - **Bars**: Monthly revenue (left Y-axis, USD scale)
   - Primary label: USD value (e.g., "$427")
   - Subtitle label: Sats value (e.g., "2.1M sats")
-  - Labels positioned 20px above bars with 50px top padding to prevent clipping
+  - Labels inside bars for tall bars (h >= 40px), above bars for short bars
 - **Line**: Monthly solar generation (right Y-axis, kWh scale)
   - Overlaid line showing kWh pattern
 - **Axes**: Auto-scaled independently
-- **Interactive**: Hover shows exact values at mouse position
-- **Caption**: "Monthly mining revenue varies with seasonal sun hours. Chart assumes static BTC price and network conditions."
+- **Interactive**: Hover shows exact values at mouse position (viewBox-scaled coordinates)
+- **Caption**: "Monthly mining revenue varies with seasonal solar production. Chart assumes static BTC price and network conditions."
 - **Display**: Shows in all three modes (Estimate, Production, and Excess)
   - Excess mode uses excess-specific data (not full system production)
+- **Key property**: Revenue bars are always proportional to generation line (both derived from same kWh source)
 
 #### Excess Mode Additional Display
 
@@ -285,13 +294,13 @@ When in Excess mode, show comparison card:
 
 ### Calculation Assumptions (Must Document in Tooltips)
 
-1. **24/7 mining during sun hours**: Assumes miners run at full capacity during all daylight hours with no downtime, throttling, or variability.
+1. **100% solar utilization**: Assumes all solar energy (kWh) goes to mining with no household consumption, grid export (in total production modes), or curtailment.
 
-2. **100% solar utilization**: Assumes all solar power goes to mining with no household consumption, grid export (in total production modes), or curtailment.
+2. **Energy-based calculation**: The calculator treats total kWh as if spread evenly over the period, calculating average equivalent hashrate. This is a "what if" model, not a real-time operational model.
 
-3. **Instantaneous power matching**: Assumes mining power perfectly matches solar output moment-to-moment without battery storage.
+3. **Static BTC price and network**: Uses current BTC price and hashvalue across all months. Does not model future difficulty adjustments, price volatility, or fee changes.
 
-4. **Static BTC price and network**: Uses current BTC price and network hashrate across all months. Does not model future difficulty adjustments, price volatility, or fee changes.
+4. **No operational considerations**: Does not model miner sizing, intermittency, or actual power-matching requirements. Only miner efficiency (J/TH) matters for revenue calculation.
 
 ### API Integrations
 
@@ -773,7 +782,7 @@ export const MINER_PRESETS: MinerSpec[] = [
 - Test PDF report generation
 
 ### Unit Tests (Implemented)
-- ✅ **103 tests passing** across 3 test suites
+- ✅ **100 tests passing** across 3 test suites
 - ✅ **100% statement coverage** on calculation logic
 - ✅ **100% function coverage**
 - ✅ **88.88% branch coverage** (only minor edge cases uncovered)
@@ -781,12 +790,12 @@ export const MINER_PRESETS: MinerSpec[] = [
 - All conversion utilities tested (formatBtc, formatUsd, formatKwh, etc.)
 - Network metric calculations tested
 - COPe formula edge cases tested
-- Solar mining revenue calculations tested
+- Solar mining revenue calculations tested (kWh-based formula)
 - **Testing Framework**: Vitest with v8 coverage provider
 
 **Test Files:**
 - `src/test/hashrate.test.ts` (37 tests) - COPe, arbitrage, network calculations
-- `src/test/solar.test.ts` (42 tests) - Solar mining, net metering, production calculations
+- `src/test/solar.test.ts` (39 tests) - kWh-based mining calculations, net metering, monthly excess
 - `src/test/pdf.test.ts` (24 tests) - PDF report generation, state rankings
 
 **Example Test Cases**:
@@ -797,9 +806,16 @@ describe('calculateCOPe', () => {
   it('handles extreme electricity rates', () => {...})
 })
 
+describe('calculateBtcFromKwh', () => {
+  it('calculates BTC from kWh using the rate-based formula', () => {...})
+  it('scales linearly with kWh', () => {...})
+  it('produces more BTC with better efficiency (lower J/TH)', () => {...})
+})
+
 describe('calculateSolarMining', () => {
-  it('correctly converts kWh to BTC revenue', () => {...})
-  it('distributes monthly production correctly', () => {...})
+  it('calculates BTC directly from kWh', () => {...})
+  it('has higher revenue in months with more production', () => {...})
+  it('uses miner efficiency correctly', () => {...})
 })
 ```
 
@@ -1014,44 +1030,58 @@ hashprice = (60,000 × 125,000) / 1e8 = $75 ✓
 
 ### Solar Monetization Calculator Formulas
 
-#### Daily Solar BTC Calculation
+#### kWh-Based Revenue Calculation
 
 **Formula:**
 ```
-userShare = miner_hashrate_TH / network_hashrate_TH
-dailyBtc24h = userShare × 144 blocks × 3.125 BTC
-dailyBtcSolar = dailyBtc24h × (avgSunHours / 24)
+For each month:
+  total_hours = days_in_month × 24
+  avg_power_W = (monthly_kWh × 1000) / total_hours
+  avg_hashrate_TH = avg_power_W / efficiency_J_TH
+  monthly_sats = avg_hashrate_TH × hashvalue_sats × days_in_month
+  monthly_btc = monthly_sats / 1e8
+```
+
+**Simplified equivalent:**
+```
+monthly_sats = (monthly_kWh × 1000 / efficiency_J_TH) × (hashvalue_sats / 24)
 ```
 
 **Mathematical Reasoning:**
-- Calculate 24/7 mining earnings first
-- Scale by fraction of day with sunlight
-- Assumes constant mining rate during sun hours
+- Derive average power from total energy (kWh → W)
+- Convert power to equivalent hashrate using miner efficiency (W/TH = J/TH)
+- Calculate revenue using hashvalue (which already includes network difficulty and fees)
+- Only miner efficiency matters - not power or hashrate individually
 
 **Example:**
 ```
-Miner: 40 TH/s hashrate
-Network: 800,000,000 TH/s (800 EH/s)
-Sun hours: 5 hours/day
+January production: 800 kWh
+Miner efficiency: 20 J/TH (e.g., 1000W / 50TH/s)
+Hashvalue: 50 sats/TH/day
 
-userShare = 40 / 800,000,000 = 5 × 10^-8 (0.000005%)
-dailyBtc24h = 5e-8 × 144 × 3.125 = 0.0000225 BTC
-dailyBtcSolar = 0.0000225 × (5/24) = 0.0000047 BTC/day
+total_hours = 31 × 24 = 744 hours
+avg_power_W = (800 × 1000) / 744 = 1,075.3 W
+avg_hashrate_TH = 1,075.3 / 20 = 53.76 TH/s
+monthly_sats = 53.76 × 50 × 31 = 83,333 sats
+monthly_btc = 83,333 / 1e8 = 0.00083333 BTC
 
-Annual: 0.0000047 × 365 = 0.00171 BTC/year (~$171 at $100k BTC)
+At $100,000/BTC: $83.33 for January
 ```
 
-**Assumptions:**
-- ⚠️ Mining rate constant during sun hours (doesn't vary with solar intensity)
-- ⚠️ No downtime, throttling, or variability
-- ⚠️ All solar power goes to mining (100% utilization)
+**Key Insight:**
+- Hashvalue = sats/TH/day already incorporates network difficulty and transaction fees
+- No need to calculate network share separately
+- Revenue scales linearly with kWh (more solar = more revenue)
+- Revenue scales linearly with hashvalue (better network conditions = more revenue)
+- Revenue scales inversely with efficiency (lower J/TH = more revenue)
 
 **Edge Cases:**
-- If avgSunHours = 0: dailyBtcSolar = 0 (correct, no sun = no mining)
-- If avgSunHours > 24: Should cap at 24 or error (invalid input)
-- If network_hashrate = 0: Division by zero → return 0 or error
+- If monthly_kWh = 0: monthly_btc = 0 (correct, no energy = no mining)
+- If efficiency_J_TH = 0: Return 0 (invalid, division by zero protection)
+- If hashvalue = 0: Return 0 (no network reward)
+- If days = 0: Return 0 (invalid period)
 
-**Status:** ⏸️ Under review - user will confirm later
+**Status:** ✅ Verified and implemented
 
 ### Hashrate Heating Calculator Formulas
 
@@ -1097,7 +1127,7 @@ savings_percent = ((traditional - hashrate) / traditional) × 100
 
 ---
 
-**Last Updated:** 2026-01-08 (Mathematical Audit In Progress)
+**Last Updated:** 2026-01-13 (Solar formula refactored to kWh-based calculation)
 
 ---
 
