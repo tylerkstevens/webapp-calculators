@@ -23,7 +23,12 @@ import {
 } from '../calculations/solar'
 
 import { getSolarEstimate, SolarEstimate } from '../api/solar'
-import { getBraiinsData, BraiinsMetrics } from '../api/bitcoin'
+import {
+  getBraiinsData,
+  BraiinsMetrics,
+  calculateHashvalueSats,
+  calculateImpliedHashrate,
+} from '../api/bitcoin'
 
 // ============================================================================
 // Types
@@ -77,13 +82,14 @@ export default function SolarMonetization() {
   const [braiinsData, setBraiinsData] = useState<BraiinsMetrics | null>(null)
   const [loadingBtc, setLoadingBtc] = useState(true)
 
-  // Manual overrides for scenario exploration (Two-Knob System)
+  // Manual overrides for scenario exploration (Three-Knob System)
   // Knob 1 (Price): BTC Price ↔ Hashprice (editing one implies the other)
-  // Knob 2 (Network): Network Hashrate ↔ Hashvalue (editing one implies the other)
+  // Knob 2 (Network): Fee % is the anchor, Network Hashrate ↔ Hashvalue imply each other
   const [btcPriceOverride, setBtcPriceOverride] = useState<string>('')
   const [hashvalueOverride, setHashvalueOverride] = useState<string>('')
   const [hashpriceOverride, setHashpriceOverride] = useState<string>('')
   const [networkHashrateOverride, setNetworkHashrateOverride] = useState<string>('')
+  const [feeOverride, setFeeOverride] = useState<string>('')
 
   // ============================================================================
   // State - Solar Data
@@ -184,7 +190,7 @@ export default function SolarMonetization() {
   }, [minerType])
 
   // ============================================================================
-  // Override Handlers (Two-Knob System)
+  // Override Handlers (Three-Knob System)
   // ============================================================================
 
   // Price group handlers (Knob 1)
@@ -198,20 +204,35 @@ export default function SolarMonetization() {
     setBtcPriceOverride('')   // Clear other in same group
   }
 
-  // Network group handlers (Knob 2)
+  // Network group handlers (Three-Knob System)
+  // Fee % is the anchor - never implied, only explicitly set
+  // When adjusting hashvalue: hold fee %, recalc network hashrate
+  // When adjusting network hashrate: hold fee %, recalc hashvalue
+  const handleFeeOverride = (value: string) => {
+    // Clamp to 0-99
+    const num = parseInt(value)
+    if (value === '' || isNaN(num)) {
+      setFeeOverride('')
+    } else {
+      setFeeOverride(Math.min(99, Math.max(0, num)).toString())
+    }
+    // Fee adjustment holds network hashrate fixed, hashvalue is recalculated
+  }
+
   const handleHashvalueOverride = (value: string) => {
     setHashvalueOverride(value)
-    setNetworkHashrateOverride('')  // Clear other in same group
+    setNetworkHashrateOverride('')  // Hashvalue override implies network hashrate
   }
 
   const handleNetworkHashrateOverride = (value: string) => {
     setNetworkHashrateOverride(value)
-    setHashvalueOverride('')  // Clear other in same group
+    setHashvalueOverride('')  // Network hashrate override implies hashvalue
   }
 
   // Check if user has any overrides active
   const hasOverrides = btcPriceOverride !== '' || hashvalueOverride !== '' ||
-                       hashpriceOverride !== '' || networkHashrateOverride !== ''
+                       hashpriceOverride !== '' || networkHashrateOverride !== '' ||
+                       feeOverride !== ''
 
   // Compensation type handler
   const handleCompensationTypeChange = (type: CompensationType) => {
@@ -220,23 +241,32 @@ export default function SolarMonetization() {
   }
 
   // ============================================================================
-  // Two-Knob Calculation Model
+  // Three-Knob Calculation Model
   // ============================================================================
   // Knob 1 (Price): BTC Price ↔ Hashprice
   //   - hashprice = hashvalue × btcPrice / 1e8
   //   - btcPrice = hashprice × 1e8 / hashvalue
   //
-  // Knob 2 (Network): Network Hashrate ↔ Hashvalue
-  //   - hashvalue = (144 × (3.125 + fees) × 1e8) / networkHashrate
-  //   - networkHashrate = (144 × (3.125 + fees) × 1e8) / hashvalue
-  //   Note: fees typically ~0.2 BTC/block (~6% of block reward)
+  // Knob 2 (Network): Fee % is the ANCHOR (never implied)
+  //   - Adjust Fee % → Hold Network Hashrate → Recalc Hashvalue
+  //   - Adjust Hashvalue → Hold Fee % → Recalc Network Hashrate
+  //   - Adjust Network Hashrate → Hold Fee % → Recalc Hashvalue
   // ============================================================================
 
-  // Get average fee rate from API data (defaults to 0.2 BTC if not available)
-  const avgFeeRate = braiinsData?.avgFeesPerBlock ?? 0.2
-  const totalReward = 3.125 + avgFeeRate
+  // Get block subsidy from API data (auto-halving based on block height)
+  const blockSubsidy = braiinsData?.blockSubsidy ?? 3.125
+
+  // Effective fee % (user override or API value)
+  const effectiveFeePercent = useMemo(() => {
+    if (feeOverride !== '') {
+      const fee = parseInt(feeOverride)
+      if (!isNaN(fee) && fee >= 0 && fee <= 99) return fee
+    }
+    return braiinsData?.feePercent ?? 6
+  }, [feeOverride, braiinsData])
 
   // KNOB 2: Calculate effective network hashrate (Network group)
+  // Three-knob logic: Fee % is anchor, hashvalue and network hashrate imply each other
   const effectiveNetworkHashrate = useMemo(() => {
     if (networkHashrateOverride) {
       const nh = parseFloat(networkHashrateOverride)
@@ -245,34 +275,43 @@ export default function SolarMonetization() {
     if (hashvalueOverride) {
       const hv = parseFloat(hashvalueOverride)
       if (hv > 0) {
-        // Back-calculate: networkHashrate = (144 × (3.125 + fees) × 1e8) / hashvalue
-        return (144 * totalReward * 1e8) / hv
+        // Back-calculate: networkHashrate = daily_reward_sats / hashvalue
+        // Using effectiveFeePercent to calculate total reward
+        return calculateImpliedHashrate(blockSubsidy, effectiveFeePercent, hv)
       }
     }
     return braiinsData?.networkHashrate ?? null
-  }, [networkHashrateOverride, hashvalueOverride, braiinsData, totalReward])
+  }, [networkHashrateOverride, hashvalueOverride, braiinsData, blockSubsidy, effectiveFeePercent])
 
-  // Calculate effective hashvalue (derived from network hashrate or Braiins API)
+  // Calculate effective hashvalue (derived from network hashrate or API)
   const effectiveHashvalue = useMemo(() => {
     if (hashvalueOverride) {
       const hv = parseFloat(hashvalueOverride)
       if (hv > 0) return hv
     }
-    // If networkHashrate is overridden, recalculate hashvalue for consistency (includes fees)
-    if (networkHashrateOverride) {
-      const nh = parseFloat(networkHashrateOverride)
-      if (nh > 0) return (144 * totalReward * 1e8) / (nh * 1e6)
+    // If networkHashrate is overridden OR fee is overridden, recalculate hashvalue
+    if (networkHashrateOverride || feeOverride !== '') {
+      const nh = networkHashrateOverride
+        ? parseFloat(networkHashrateOverride) * 1e6
+        : (braiinsData?.networkHashrate ?? null)
+      if (nh && nh > 0) {
+        return calculateHashvalueSats(blockSubsidy, effectiveFeePercent, nh)
+      }
     }
-    // Use Braiins hashvalue directly (includes fees, more accurate)
+    // Use API hashvalue directly (in sats/TH/day)
+    if (braiinsData?.hashvalueSats) {
+      return braiinsData.hashvalueSats
+    }
+    // Legacy fallback: convert from BTC/TH/day to sats
     if (braiinsData?.hashvalue) {
       return braiinsData.hashvalue * 1e8
     }
-    // Fallback: calculate from network hashrate (includes fees)
+    // Final fallback: calculate from network hashrate
     if (effectiveNetworkHashrate && effectiveNetworkHashrate > 0) {
-      return (144 * totalReward * 1e8) / effectiveNetworkHashrate
+      return calculateHashvalueSats(blockSubsidy, effectiveFeePercent, effectiveNetworkHashrate)
     }
     return null
-  }, [hashvalueOverride, networkHashrateOverride, braiinsData, effectiveNetworkHashrate, totalReward])
+  }, [hashvalueOverride, networkHashrateOverride, feeOverride, braiinsData, effectiveNetworkHashrate, blockSubsidy, effectiveFeePercent])
 
   // KNOB 1: Calculate effective BTC price (Price group)
   const effectiveBtcPrice = useMemo(() => {
@@ -289,27 +328,24 @@ export default function SolarMonetization() {
     return braiinsData?.btcPrice ?? null
   }, [btcPriceOverride, hashpriceOverride, effectiveHashvalue, braiinsData])
 
-  // Calculate effective hashprice
+  // Calculate effective hashprice (hashprice = hashvalue × btcPrice / 1e8)
+  // Always derive from effective values to stay consistent with network overrides
   const effectiveHashprice = useMemo(() => {
     if (hashpriceOverride) {
       const hp = parseFloat(hashpriceOverride)
       if (hp > 0) return hp
     }
-    // If btcPrice is overridden, recalculate hashprice for consistency
-    if (btcPriceOverride && effectiveHashvalue) {
-      const bp = parseFloat(btcPriceOverride)
-      if (bp > 0) return (effectiveHashvalue * bp) / 1e8
-    }
-    // Use Braiins hashprice directly
-    if (braiinsData?.hashprice) {
-      return braiinsData.hashprice
-    }
-    // Fallback: calculate from btcPrice and hashvalue
+    // Always calculate from effective values when available
+    // This ensures hashprice updates when hashvalue changes due to network overrides
     if (effectiveBtcPrice && effectiveHashvalue) {
       return (effectiveHashvalue * effectiveBtcPrice) / 1e8
     }
+    // Fallback to API hashprice (only when effective values unavailable)
+    if (braiinsData?.hashprice) {
+      return braiinsData.hashprice
+    }
     return null
-  }, [hashpriceOverride, btcPriceOverride, braiinsData, effectiveHashvalue, effectiveBtcPrice])
+  }, [hashpriceOverride, braiinsData, effectiveHashvalue, effectiveBtcPrice])
 
   // Network metrics for display
   const networkMetrics = useMemo(() => {
@@ -754,6 +790,7 @@ export default function SolarMonetization() {
                     setHashvalueOverride('')
                     setHashpriceOverride('')
                     setNetworkHashrateOverride('')
+                    setFeeOverride('')
                   }}
                   className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium px-1.5 sm:px-2 py-1 rounded hover:bg-primary-50 dark:hover:bg-primary-900/30 transition-colors"
                 >
@@ -830,12 +867,48 @@ export default function SolarMonetization() {
                 </div>
               </div>
 
-              {/* KNOB 2: Network Group (Hashvalue ↔ Network Hashrate) */}
+              {/* KNOB 2: Network Group (Fee % anchor, Hashvalue ↔ Network Hashrate) */}
               <div className="rounded-lg border border-orange-200 dark:border-orange-800/50 bg-orange-50/30 dark:bg-orange-900/10 p-2 sm:p-3">
                 <div className="text-[8px] sm:text-[9px] text-orange-600 dark:text-orange-400 uppercase tracking-wider font-semibold mb-1.5 sm:mb-2 text-center">
                   Mining Network
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  {/* Fee % - Slider + Input (ANCHOR - never implied) */}
+                  <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
+                    feeOverride !== ''
+                      ? 'bg-orange-100 dark:bg-orange-900/30 border-2 border-orange-400 dark:border-orange-600'
+                      : 'bg-white dark:bg-surface-800 border-2 border-dashed border-orange-300 dark:border-orange-700 hover:border-orange-400 dark:hover:border-orange-500'
+                  }`}>
+                    <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
+                      <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${feeOverride !== '' ? 'text-orange-600 dark:text-orange-400' : 'text-surface-400 dark:text-surface-500'}`} />
+                      Fee %
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <input
+                        type="range"
+                        min="0"
+                        max="99"
+                        step="1"
+                        value={feeOverride !== '' ? parseInt(feeOverride) : effectiveFeePercent}
+                        onChange={(e) => handleFeeOverride(e.target.value)}
+                        className="w-full h-1.5 sm:h-2 bg-orange-200 dark:bg-orange-800 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                      />
+                      <div className="flex items-center gap-0.5">
+                        <input
+                          type="number"
+                          min="0"
+                          max="99"
+                          value={feeOverride !== '' ? feeOverride : effectiveFeePercent}
+                          onChange={(e) => handleFeeOverride(e.target.value)}
+                          className={`w-10 sm:w-12 text-base sm:text-xl font-bold text-center py-0.5 bg-transparent focus:outline-none ${
+                            feeOverride !== '' ? 'text-orange-700 dark:text-orange-400' : 'text-orange-600 dark:text-orange-400'
+                          }`}
+                        />
+                        <span className="text-[9px] sm:text-xs text-surface-500 dark:text-surface-400">%</span>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Hashvalue - Editable */}
                   <div className={`rounded-lg p-2 sm:p-3 text-center transition-all ${
                     hashvalueOverride
@@ -845,7 +918,7 @@ export default function SolarMonetization() {
                     <div className="text-[9px] sm:text-[10px] text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-0.5 sm:mb-1 flex items-center justify-center gap-1">
                       <Pencil className={`w-2 h-2 sm:w-2.5 sm:h-2.5 ${hashvalueOverride ? 'text-orange-600 dark:text-orange-400' : 'text-surface-400 dark:text-surface-500'}`} />
                       Hashvalue
-                      {networkHashrateOverride && !hashvalueOverride && (
+                      {(networkHashrateOverride || feeOverride !== '') && !hashvalueOverride && (
                         <span className="text-orange-600 dark:text-orange-400">(implied)</span>
                       )}
                     </div>
