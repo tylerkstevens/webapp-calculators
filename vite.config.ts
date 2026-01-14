@@ -16,5 +16,18 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        // Manual chunks for better code splitting
+        manualChunks: {
+          // Core React and router - loaded on every page
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // PDF libraries - only loaded when generating PDFs
+          'vendor-pdf': ['@react-pdf/renderer'],
+          // Map library - only loaded on hashrate heating page
+          'vendor-maps': ['react-simple-maps'],
+        },
+      },
+    },
   },
 })

@@ -1,7 +1,4 @@
 import { useState, useCallback } from 'react'
-import { pdf } from '@react-pdf/renderer'
-import HashrateHeatingReport from '../pdf/reports/HashrateHeatingReport'
-import SolarMiningReport from '../pdf/reports/SolarMiningReport'
 import type { HashrateHeatingReportData, SolarMiningReportData } from '../pdf/types'
 
 interface UsePdfReportOptions {
@@ -31,6 +28,13 @@ export function usePdfReport(options: UsePdfReportOptions = {}) {
       setError(null)
 
       try {
+        // Dynamically import PDF libraries only when needed
+        // This keeps them out of the main bundle
+        const [{ pdf }, { default: HashrateHeatingReport }] = await Promise.all([
+          import('@react-pdf/renderer'),
+          import('../pdf/reports/HashrateHeatingReport')
+        ])
+
         const doc = <HashrateHeatingReport data={data} />
         const blob = await pdf(doc).toBlob()
         downloadBlob(blob, filename)
@@ -51,6 +55,13 @@ export function usePdfReport(options: UsePdfReportOptions = {}) {
       setError(null)
 
       try {
+        // Dynamically import PDF libraries only when needed
+        // This keeps them out of the main bundle
+        const [{ pdf }, { default: SolarMiningReport }] = await Promise.all([
+          import('@react-pdf/renderer'),
+          import('../pdf/reports/SolarMiningReport')
+        ])
+
         const doc = <SolarMiningReport data={data} />
         const blob = await pdf(doc).toBlob()
         downloadBlob(blob, filename)
