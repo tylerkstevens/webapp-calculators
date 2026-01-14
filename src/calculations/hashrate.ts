@@ -446,7 +446,7 @@ export function getMinerEfficiency(miner: MinerSpec): number {
  */
 export function formatCOPe(cope: number): string {
   if (!isFinite(cope)) {
-    return '∞ (Free)'
+    return 'Infinity (Free)'
   }
   if (cope < 0) {
     return 'Paid to heat!'

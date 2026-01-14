@@ -276,7 +276,7 @@ describe('getMinerEfficiency', () => {
 
 describe('formatCOPe', () => {
   it('should format infinite COPe', () => {
-    expect(formatCOPe(Infinity)).toBe('∞ (Free)')
+    expect(formatCOPe(Infinity)).toBe('Infinity (Free)')
   })
 
   it('should format negative COPe', () => {

@@ -226,6 +226,8 @@ export function PdfChartGrid({ charts }: PdfChartGridProps) {
 }
 
 // Row component for 1x3 chart layout (3 charts in a row)
+// Page is 612pt wide with 40pt padding on each side = 532pt content area
+// 3 charts × 168pt = 504pt + 2 gaps × 10pt = 524pt (fits with margin)
 interface PdfChartRowProps {
   charts: PdfChartData[]
 }
@@ -236,11 +238,11 @@ export function PdfChartRow({ charts }: PdfChartRowProps) {
       style={{
         flexDirection: 'row',
         justifyContent: 'space-between',
-        gap: 8,
+        gap: 10,
       }}
     >
       {charts.map((chart, index) => (
-        <PdfLineChart key={index} data={chart} width={175} height={140} />
+        <PdfLineChart key={index} data={chart} width={168} height={140} />
       ))}
     </View>
   )

@@ -1598,6 +1598,8 @@ export default function HashrateHeating() {
           title: 'Bitcoin Network',
           items: [
             { label: 'BTC Price', value: `${currencySymbol}${effectiveBtcPrice?.toLocaleString() || 'N/A'}` },
+            { label: 'Hashvalue', value: `${networkMetrics?.hashvalue.toFixed(0) || 'N/A'} sats/TH/d` },
+            { label: 'Fee %', value: `${effectiveFeePercent}%` },
             { label: 'Hashprice', value: `${currencySymbol}${effectiveHashprice?.toFixed(4) || 'N/A'}/TH/d` },
             { label: 'Network Hashrate', value: `${((effectiveNetworkHashrate || 0) / 1e6).toFixed(0)} EH/s` },
           ],
@@ -1623,7 +1625,9 @@ export default function HashrateHeating() {
           items: [
             { label: 'Type', value: fuelSpec.label },
             { label: 'Rate', value: `${currencySymbol}${fuelRate}/${fuelSpec.unit}` },
-            { label: 'Efficiency', value: `${(parseFloat(fuelEfficiency) * 100).toFixed(0)}% AFUE` },
+            { label: 'Efficiency', value: fuelType === 'heat_pump'
+              ? `${parseFloat(fuelEfficiency).toFixed(1)} COP`
+              : `${parseFloat(fuelEfficiency).toFixed(0)}% AFUE` },
           ],
         },
       ],
@@ -1633,7 +1637,9 @@ export default function HashrateHeating() {
           label: 'Effective Heat Cost',
           value: `${currencySymbol}${copeResult.effectiveCostPerKwh.toFixed(3)}/kWh`,
           explanation: 'Net cost per kilowatt-hour of heat after subtracting bitcoin mining revenue from your electricity cost. This is your true heating cost when using a bitcoin miner as a heater. Lower values indicate better economics. Negative values mean you\'re being paid to heat.',
-          subValue: `${currencySymbol}${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`,
+          subValue: fuelEquivalentCost
+            ? `${currencySymbol}${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU • ${currencySymbol}${fuelEquivalentCost.value.toFixed(2)}/${fuelEquivalentCost.unit}`
+            : `${currencySymbol}${copeResult.effectiveCostPerMMBTU.toFixed(2)}/MMBTU`,
         },
         {
           label: 'Break-even Rate',
@@ -1643,7 +1649,7 @@ export default function HashrateHeating() {
         {
           label: 'Heating Power',
           value: `${(parseFloat(minerPower) * 3.412).toFixed(0)} BTU/h`,
-          explanation: 'Heat output capacity of your mining hardware measured in British Thermal Units per hour. All electrical power consumed by the miner converts to heat with 100% efficiency, just like a traditional electric resistance heater. Compare this to your heating needs and existing heating system capacity.',
+          explanation: 'Heat output capacity of a single mining unit measured in British Thermal Units per hour. All electrical power consumed converts to heat with 100% efficiency, just like an electric resistance heater. Scale by number of units for total heating capacity.',
         },
         {
           label: `Savings vs ${fuelSpec.label}`,
@@ -1688,7 +1694,8 @@ export default function HashrateHeating() {
     fuelRateNum, electricityRateNum, minerEfficiency, networkMetrics, miner,
     effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, minerPower,
     minerHashrate, electricityRate, selectedRegion, fuelRate, fuelEfficiency,
-    currencySymbol, calculateSavingsAtX, calculateCOPeAtX
+    currencySymbol, calculateSavingsAtX, calculateCOPeAtX, effectiveFeePercent,
+    fuelEquivalentCost
   ])
 
   // ============================================================================
