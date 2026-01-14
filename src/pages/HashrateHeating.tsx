@@ -1777,7 +1777,7 @@ export default function HashrateHeating() {
               )}
             </div>
 
-            {/* Two-knob layout: Price group | Network group */}
+            {/* Three-knob layout: Price group | Network group (with Fee % slider) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               {/* KNOB 1: Price Group (BTC Price ↔ Hashprice) */}
               <div className="rounded-lg border border-green-200 dark:border-green-800/50 bg-green-50/30 dark:bg-green-900/10 p-2 sm:p-3">

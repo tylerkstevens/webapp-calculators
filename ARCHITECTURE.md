@@ -989,28 +989,30 @@ useEffect(() => {
 
 ---
 
-### Decision 5: Two-Knob Override System
+### Decision 5: Three-Knob Override System
 
 **Options Considered:**
-1. **Two-knob linked system** (chosen)
-2. Independent inputs (4 separate fields)
+1. **Three-knob linked system** (chosen)
+2. Independent inputs (5 separate fields)
 3. Scenario presets only
 4. No overrides (live data only)
 
-**Decision: Two-Knob Linked System**
+**Decision: Three-Knob Linked System**
 
 **Rationale:**
 - Educates users about BTC network relationships
 - Maintains mathematical consistency
 - Price group: btcPrice ↔ hashprice
-- Network group: networkHashrate ↔ hashvalue
+- Network group: networkHashrate ↔ hashvalue (with Fee % as anchor)
+- Fee % slider: Controls transaction fee modeling (never implied)
 - Prevents impossible combinations
-- Power users can model scenarios accurately
+- Power users can model any network scenario accurately
 
 **User Experience:**
 - Visual grouping with color-coding (green = price, orange = network)
 - Clear "(implied)" indicators when values are derived
-- "Reset to live data" button when overridden
+- Fee % is the "anchor" - never shows "(implied)"
+- "Reset to live data" button resets all overrides including fee %
 
 ---
 
@@ -1503,7 +1505,7 @@ These architectural considerations are documented but not currently planned:
 
 ### Current Production Status
 
-**Version:** 1.2 (Production)
+**Version:** 1.3 (Production)
 **Last Updated:** 2026-01-13
 **Implementation:** All 8 phases complete + Solar formula refactor
 
@@ -1581,7 +1583,7 @@ These architectural considerations are documented but not currently planned:
 - Calculation engine isolated from UI
 - useMemo for derived state optimization
 - Debounced API calls for performance
-- Two-knob override system for user education
+- Three-knob override system for user education (Fee % as anchor)
 - Responsive grid layouts with Tailwind
 
 ### Maintenance Notes
