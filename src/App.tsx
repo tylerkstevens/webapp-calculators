@@ -1,9 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, ComponentType } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 
 // Lazy load calculator pages for code splitting
-// Each page will be in its own chunk, loaded only when visited
 const Home = lazy(() => import('./pages/Home'))
 const HashrateHeating = lazy(() => import('./pages/HashrateHeating'))
 const SolarMonetization = lazy(() => import('./pages/SolarMonetization'))
@@ -20,25 +19,22 @@ function PageLoader() {
   )
 }
 
+// Wrapper for lazy-loaded route components
+function LazyRoute({ component: Component }: { component: ComponentType }) {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Component />
+    </Suspense>
+  )
+}
+
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Layout />}>
-        <Route index element={
-          <Suspense fallback={<PageLoader />}>
-            <Home />
-          </Suspense>
-        } />
-        <Route path="hashrate" element={
-          <Suspense fallback={<PageLoader />}>
-            <HashrateHeating />
-          </Suspense>
-        } />
-        <Route path="solar" element={
-          <Suspense fallback={<PageLoader />}>
-            <SolarMonetization />
-          </Suspense>
-        } />
+        <Route index element={<LazyRoute component={Home} />} />
+        <Route path="hashrate" element={<LazyRoute component={HashrateHeating} />} />
+        <Route path="solar" element={<LazyRoute component={SolarMonetization} />} />
       </Route>
     </Routes>
   )

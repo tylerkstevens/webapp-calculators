@@ -22,20 +22,22 @@ export function usePdfReport(options: UsePdfReportOptions = {}) {
     URL.revokeObjectURL(url)
   }, [])
 
-  const generateHashrateReport = useCallback(
-    async (data: HashrateHeatingReportData) => {
+  // Generic report generator - handles state, imports, and error handling
+  const generateReport = useCallback(
+    async <T,>(
+      data: T,
+      importReport: () => Promise<{ default: React.ComponentType<{ data: T }> }>
+    ) => {
       setIsGenerating(true)
       setError(null)
 
       try {
-        // Dynamically import PDF libraries only when needed
-        // This keeps them out of the main bundle
-        const [{ pdf }, { default: HashrateHeatingReport }] = await Promise.all([
+        const [{ pdf }, { default: Report }] = await Promise.all([
           import('@react-pdf/renderer'),
-          import('../pdf/reports/HashrateHeatingReport')
+          importReport()
         ])
 
-        const doc = <HashrateHeatingReport data={data} />
+        const doc = <Report data={data} />
         const blob = await pdf(doc).toBlob()
         downloadBlob(blob, filename)
       } catch (err) {
@@ -49,31 +51,17 @@ export function usePdfReport(options: UsePdfReportOptions = {}) {
     [filename, downloadBlob]
   )
 
+  // Type-safe wrappers for specific report types
+  const generateHashrateReport = useCallback(
+    (data: HashrateHeatingReportData) =>
+      generateReport(data, () => import('../pdf/reports/HashrateHeatingReport')),
+    [generateReport]
+  )
+
   const generateSolarReport = useCallback(
-    async (data: SolarMiningReportData) => {
-      setIsGenerating(true)
-      setError(null)
-
-      try {
-        // Dynamically import PDF libraries only when needed
-        // This keeps them out of the main bundle
-        const [{ pdf }, { default: SolarMiningReport }] = await Promise.all([
-          import('@react-pdf/renderer'),
-          import('../pdf/reports/SolarMiningReport')
-        ])
-
-        const doc = <SolarMiningReport data={data} />
-        const blob = await pdf(doc).toBlob()
-        downloadBlob(blob, filename)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to generate PDF'
-        setError(message)
-        console.error('PDF generation error:', err)
-      } finally {
-        setIsGenerating(false)
-      }
-    },
-    [filename, downloadBlob]
+    (data: SolarMiningReportData) =>
+      generateReport(data, () => import('../pdf/reports/SolarMiningReport')),
+    [generateReport]
   )
 
   return {
