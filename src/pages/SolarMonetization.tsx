@@ -368,9 +368,6 @@ export default function SolarMonetization() {
     hashrateTH: parseFloat(minerHashrate) || 40,
   }), [minerType, minerPower, minerHashrate])
 
-  // System size
-  const systemKw = useMemo(() => parseFloat(systemSizeKw) || 10, [systemSizeKw])
-
   // Note: Miner quantity removed - calculations now assume 100% solar utilization
 
   // Check if we have required data for calculations
@@ -534,12 +531,30 @@ export default function SolarMonetization() {
       ? `${solarEstimate.city}, ${solarEstimate.state}`
       : zipCode || 'Not specified'
 
-    // Build input categories
+    // Determine solar input method
+    const solarInputMethod = inputMode === 'estimate'
+      ? {
+          source: 'nrel_estimate' as const,
+          description: `Estimated from ${systemSizeKw} kW system using NREL PVWatts API based on location (${location})`
+        }
+      : dataEntryMethod === 'monthly'
+        ? {
+            source: 'manual_monthly' as const,
+            description: 'User-provided monthly production breakdown (Jan-Dec)'
+          }
+        : {
+            source: 'manual_annual' as const,
+            description: 'User-provided annual production estimate'
+          }
+
+    // Build input categories with all Bitcoin network data
     const inputs: PdfInputCategory[] = [
       {
-        title: 'Bitcoin Data',
+        title: 'Bitcoin Network',
         items: [
           { label: 'BTC Price', value: `$${effectiveBtcPrice?.toLocaleString() || 'N/A'}` },
+          { label: 'Hashvalue', value: `${networkMetrics?.hashvalue.toFixed(0) || 'N/A'} sats/TH/d` },
+          { label: 'Fee %', value: `${effectiveFeePercent}%` },
           { label: 'Hashprice', value: `$${effectiveHashprice?.toFixed(4) || 'N/A'}/TH/d` },
           { label: 'Network Hashrate', value: `${((effectiveNetworkHashrate || 0) / 1e6).toFixed(0)} EH/s` },
         ],
@@ -549,7 +564,9 @@ export default function SolarMonetization() {
         items: [
           { label: 'Location', value: location },
           { label: 'System Size', value: `${systemSizeKw} kW` },
-          { label: 'Annual Production', value: `${annualKwh.toLocaleString()} kWh` },
+          { label: 'Annual Production', value: `${Math.round(annualKwh).toLocaleString()} kWh` },
+          { label: 'Monthly Average', value: `${Math.round(annualKwh / 12).toLocaleString()} kWh` },
+          { label: 'Data Source', value: solarInputMethod.source === 'nrel_estimate' ? 'NREL PVWatts Estimate' : solarInputMethod.source === 'manual_monthly' ? 'Manual (Monthly)' : 'Manual (Annual)' },
         ],
       },
       {
@@ -562,55 +579,74 @@ export default function SolarMonetization() {
       },
     ]
 
+    const annualSats = Math.round(miningResult.annualBtc * 1e8)
+    const monthlyAvgSats = Math.round(annualSats / 12)
+
     // Build results
     const results: PdfResultItem[] = [
       {
         label: 'Annual BTC Earnings',
         value: formatBtc(miningResult.annualBtc),
-        explanation: 'Total bitcoin mined annually using your solar power during daylight hours. This calculation assumes your solar system runs dedicated mining hardware whenever the sun is shining. Revenue converts to USD at the current BTC price used in this report.',
-        subValue: `${(miningResult.annualBtc * 100000000).toFixed(0)} sats`,
+        explanation: 'Total bitcoin mined annually using your solar power. This projection assumes current network conditions remain constant. Actual earnings will vary as network difficulty adjusts approximately every 2 weeks.',
+        subValue: `${annualSats.toLocaleString()} sats`,
       },
       {
         label: 'Annual Revenue (USD)',
         value: formatUsd(miningResult.annualUsd),
-        explanation: 'Dollar value of mined bitcoin at the current BTC price snapshot. Actual realized value will vary depending on when you sell and market conditions. Consider holding BTC if you believe in long-term appreciation.',
+        explanation: 'Dollar value of mined bitcoin at today\'s price. Actual USD value depends on market conditions when you sell.',
       },
       {
         label: 'Monthly Average',
         value: formatUsd(miningResult.monthlyUsd),
-        explanation: 'Average monthly revenue calculated by dividing annual earnings by 12. Actual monthly earnings vary significantly with seasonal sun hours—summer months typically earn 40-60% more than winter months. See monthly breakdown chart for detailed seasonality.',
+        explanation: 'Average monthly revenue. Actual monthly earnings vary with seasonal solar production—summer months typically produce 40-60% more than winter.',
+        subValue: `${monthlyAvgSats.toLocaleString()} sats`,
       },
       {
         label: 'Revenue per kWh',
         value: `$${miningResult.effectiveRevenuePerKwh.toFixed(3)}`,
-        explanation: 'Effective value extracted from each kilowatt-hour of solar electricity via bitcoin mining. This metric helps you compare mining monetization to alternative uses like net metering, battery storage, or direct consumption. Higher values indicate better mining economics.',
+        explanation: 'Effective value per kWh of solar electricity via mining. Compare to net metering rates to evaluate best monetization strategy.',
         subValue: `${miningResult.btcPerKwh.toFixed(0)} sats/kWh`,
       },
     ]
 
-    // Monthly bar chart data
+    // Monthly dual-axis chart data
     const monthlyChart = {
-      title: 'Monthly Revenue Breakdown',
+      title: 'Monthly Revenue & Solar Generation',
       bars: miningResult.monthlyUsdBreakdown.map((usd, i) => ({
         label: getMonthName(i),
         value: usd,
+        valueSats: Math.round(miningResult.monthlyBtcBreakdown[i] * 1e8),
       })),
-      yLabel: 'Revenue',
-      yUnit: '$',
-      caption: 'Monthly mining revenue varies with seasonal sun hours.',
+      lineData: miningResult.monthlyProductionKwh,
+      barLabel: 'Mining Revenue',
+      barUnit: '$',
+      lineLabel: 'Solar Generation',
+      lineUnit: 'kWh',
+      caption: 'Revenue varies with seasonal solar production. Analysis assumes constant BTC price and network conditions.',
     }
 
     return {
       mode: 'potential',
-      generatedDate: new Date().toLocaleDateString(),
+      generatedDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
       location,
-      isProfitable: miningResult.annualUsd > 0,
-      summaryText: `Mining ${formatBtc(miningResult.annualBtc)} (${formatUsd(miningResult.annualUsd)}) annually from ${formatKwh(miningResult.annualProductionKwh)} solar production at ${(miner.powerW / miner.hashrateTH).toFixed(1)} J/TH efficiency.`,
+      keyMetrics: {
+        annualBtc: formatBtc(miningResult.annualBtc),
+        annualSats: `${annualSats.toLocaleString()} sats`,
+        monthlyAvgSats: `${monthlyAvgSats.toLocaleString()} sats/mo`,
+        annualRevenue: formatUsd(miningResult.annualUsd),
+        annualProductionKwh: `${Math.round(annualKwh).toLocaleString()} kWh`,
+        monthlyAvgProductionKwh: `${Math.round(annualKwh / 12).toLocaleString()} kWh/mo`,
+      },
+      summaryText: `Your ${Math.round(annualKwh).toLocaleString()} kWh solar system could mine ${formatBtc(miningResult.annualBtc)} (${formatUsd(miningResult.annualUsd)}) annually at current network conditions.`,
+      solarInputMethod,
+      analysisType: {
+        type: 'total_potential',
+      },
       inputs,
       results,
       monthlyChart,
     }
-  }, [miningResult, inputMode, minerType, solarEstimate, zipCode, effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, systemSizeKw, annualKwh, systemKw, miner])
+  }, [miningResult, inputMode, minerType, solarEstimate, zipCode, effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, systemSizeKw, annualKwh, miner, dataEntryMethod, networkMetrics, effectiveFeePercent])
 
   // PDF Report for comparison mode (mining vs net metering)
   const pdfComparisonReportData = useMemo((): SolarMiningReportData | null => {
@@ -626,28 +662,47 @@ export default function SolarMonetization() {
 
     const compType = COMPENSATION_TYPES[compensationType]
 
-    // Build input categories
+    // Determine solar input method for excess mode
+    const solarInputMethod = dataEntryMethod === 'monthly'
+      ? {
+          source: 'manual_monthly' as const,
+          description: 'User-provided monthly excess energy breakdown (Jan-Dec)'
+        }
+      : {
+          source: 'manual_annual' as const,
+          description: 'User-provided annual excess energy estimate'
+        }
+
+    const annualSats = Math.round(netMeteringResult.miningBtc * 1e8)
+    const monthlyAvgSats = Math.round(annualSats / 12)
+
+    // Build input categories with all Bitcoin network data
     const inputs: PdfInputCategory[] = [
       {
-        title: 'Bitcoin Data',
+        title: 'Bitcoin Network',
         items: [
           { label: 'BTC Price', value: `$${effectiveBtcPrice?.toLocaleString() || 'N/A'}` },
+          { label: 'Hashvalue', value: `${networkMetrics?.hashvalue.toFixed(0) || 'N/A'} sats/TH/d` },
+          { label: 'Fee %', value: `${effectiveFeePercent}%` },
           { label: 'Hashprice', value: `$${effectiveHashprice?.toFixed(4) || 'N/A'}/TH/d` },
           { label: 'Network Hashrate', value: `${((effectiveNetworkHashrate || 0) / 1e6).toFixed(0)} EH/s` },
         ],
       },
       {
-        title: 'Solar Export',
+        title: 'Excess Solar Energy',
         items: [
           { label: 'Location', value: location },
           { label: 'Annual Excess', value: `${annualExportKwh.toLocaleString()} kWh` },
+          { label: 'Monthly Average', value: `${Math.round(annualExportKwh / 12).toLocaleString()} kWh` },
+          { label: 'Data Entry', value: dataEntryMethod === 'monthly' ? 'Monthly Breakdown' : 'Annual Estimate' },
         ],
       },
       {
-        title: 'Net Metering',
+        title: 'Utility Compensation',
         items: [
-          { label: 'Compensation Type', value: compType.label },
-          { label: 'Export Rate', value: `$${netMeteringRate}/kWh` },
+          { label: 'Type', value: compType.label },
+          { label: 'Rate', value: `$${netMeteringRate}/kWh` },
+          { label: 'Description', value: compType.shortDesc },
         ],
       },
       {
@@ -665,43 +720,56 @@ export default function SolarMonetization() {
       {
         label: `${compType.label} Value`,
         value: formatUsd(netMeteringResult.netMeteringRevenue),
-        explanation: `Annual value of your excess solar electricity exported to the grid at $${netMeteringRate}/kWh via ${compType.label.toLowerCase()}. This represents the baseline compensation you'd receive without mining. Rates and compensation structures vary by utility and state policy.`,
+        explanation: `Annual value of excess solar at $${netMeteringRate}/kWh via ${compType.label.toLowerCase()}. This is your baseline utility compensation.`,
       },
       {
         label: 'Mining Revenue',
         value: formatUsd(netMeteringResult.miningRevenue),
-        explanation: 'Annual revenue generated by using your excess solar electricity to mine bitcoin instead of exporting to the grid. Revenue depends on BTC price, network difficulty, and your mining hardware efficiency. This calculation uses current network conditions as a snapshot.',
-        subValue: `${formatBtc(netMeteringResult.miningBtc)} BTC`,
+        explanation: 'Annual mining revenue from excess solar at current BTC price and network conditions.',
+        subValue: `${formatBtc(netMeteringResult.miningBtc)} (${annualSats.toLocaleString()} sats)`,
       },
       {
         label: netMeteringResult.recommendMining ? 'Mining Advantage' : 'Net Metering Advantage',
         value: `${netMeteringResult.recommendMining ? '+' : '-'}${formatUsd(Math.abs(netMeteringResult.advantageUsd))}`,
         explanation: netMeteringResult.recommendMining
-          ? 'Additional annual revenue you could earn by mining bitcoin instead of exporting to the grid via net metering. This advantage varies with BTC price and network conditions. Consider mining if this advantage remains positive over time.'
-          : 'Additional annual value you earn by using net metering instead of mining bitcoin with your excess solar. At current conditions, net metering provides better compensation. Mining becomes more attractive if BTC price increases or your net metering rate decreases.',
+          ? 'Additional revenue from mining vs utility compensation. This advantage varies with market conditions.'
+          : 'Additional value from utility compensation vs mining at current conditions.',
       },
       {
         label: 'Multiplier',
         value: `${netMeteringResult.advantageMultiplier.toFixed(1)}x`,
         explanation: netMeteringResult.recommendMining
-          ? `Mining earns ${netMeteringResult.advantageMultiplier.toFixed(1)}x more than net metering per kWh of excess solar. A 2x multiplier means you double your solar monetization value by mining. Higher multipliers indicate stronger mining economics relative to grid export rates.`
-          : `Net metering earns ${(1 / netMeteringResult.advantageMultiplier).toFixed(1)}x more than mining per kWh of excess solar. This indicates current grid export rates provide better value than mining. The economics may shift with BTC price changes or network difficulty adjustments.`,
+          ? `Mining earns ${netMeteringResult.advantageMultiplier.toFixed(1)}x more than ${compType.label.toLowerCase()}.`
+          : `${compType.label} earns ${(1 / netMeteringResult.advantageMultiplier).toFixed(1)}x more than mining.`,
       },
       {
-        label: 'Effective $/kWh (Mining)',
+        label: 'Mining $/kWh',
         value: `$${(netMeteringResult.miningRevenue / netMeteringResult.excessKwh).toFixed(3)}`,
-        explanation: 'Effective dollar value per kilowatt-hour when using excess solar to mine bitcoin rather than exporting to the grid. Compare this to your net metering rate to evaluate which monetization strategy provides better returns. Mining may offer higher $/kWh in states with low net metering compensation.',
+        explanation: `Effective mining value per kWh. Compare to your ${compType.label.toLowerCase()} rate of $${netMeteringRate}/kWh.`,
       },
     ]
 
     return {
       mode: 'comparison',
-      generatedDate: new Date().toLocaleDateString(),
+      generatedDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
       location,
-      isProfitable: netMeteringResult.recommendMining,
+      keyMetrics: {
+        annualBtc: formatBtc(netMeteringResult.miningBtc),
+        annualSats: `${annualSats.toLocaleString()} sats`,
+        monthlyAvgSats: `${monthlyAvgSats.toLocaleString()} sats/mo`,
+        annualRevenue: formatUsd(netMeteringResult.miningRevenue),
+        annualProductionKwh: `${Math.round(annualExportKwh).toLocaleString()} kWh`,
+        monthlyAvgProductionKwh: `${Math.round(annualExportKwh / 12).toLocaleString()} kWh/mo`,
+      },
       summaryText: netMeteringResult.recommendMining
-        ? `Mining beats ${compType.label.toLowerCase()} by ${formatUsd(netMeteringResult.advantageUsd)}/year.`
+        ? `Mining excess solar earns ${formatUsd(netMeteringResult.advantageUsd)}/year more than ${compType.label.toLowerCase()}.`
         : `${compType.label} provides ${formatUsd(Math.abs(netMeteringResult.advantageUsd))}/year more than mining.`,
+      solarInputMethod,
+      analysisType: {
+        type: 'excess_comparison',
+        compensationType: compType.label,
+        compensationRate: `$${netMeteringRate}/kWh`,
+      },
       inputs,
       results,
       comparison: {
@@ -713,7 +781,7 @@ export default function SolarMonetization() {
         compensationType: compType.label,
       },
     }
-  }, [netMeteringResult, inputMode, minerType, solarEstimate, zipCode, effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, annualExportKwh, compensationType, netMeteringRate, minerPower, minerHashrate])
+  }, [netMeteringResult, inputMode, minerType, solarEstimate, zipCode, effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, annualExportKwh, compensationType, netMeteringRate, minerPower, minerHashrate, dataEntryMethod, networkMetrics, effectiveFeePercent])
 
   // ============================================================================
   // Render

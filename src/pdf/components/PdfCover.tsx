@@ -10,6 +10,8 @@ interface PdfCoverProps {
   isProfitable: boolean
   summaryText: string
   keyMetrics: { label: string; value: string }[]
+  /** If true, hides the "PROFITABLE/NOT PROFITABLE" prefix */
+  hideProfitableStatus?: boolean
 }
 
 export default function PdfCover({
@@ -21,6 +23,7 @@ export default function PdfCover({
   isProfitable,
   summaryText,
   keyMetrics,
+  hideProfitableStatus = false,
 }: PdfCoverProps) {
   return (
     <Page size="LETTER" style={styles.page}>
@@ -62,10 +65,12 @@ export default function PdfCover({
         <Text
           style={[
             styles.summaryStatus,
-            { color: isProfitable ? colors.success : colors.danger },
+            { color: hideProfitableStatus ? colors.text : (isProfitable ? colors.success : colors.danger) },
           ]}
         >
-          {isProfitable ? '✓ PROFITABLE' : '✗ NOT PROFITABLE'}: {summaryText}
+          {hideProfitableStatus
+            ? summaryText
+            : `${isProfitable ? '✓ PROFITABLE' : '✗ NOT PROFITABLE'}: ${summaryText}`}
         </Text>
 
         {/* Key Metrics */}

@@ -99,6 +99,20 @@ export interface PdfBarChartData {
   caption: string
 }
 
+export interface PdfDualAxisChartData {
+  title: string
+  // Bar data (revenue)
+  bars: { label: string; value: number; valueSats: number }[]
+  // Line data (generation)
+  lineData: number[]
+  // Labels
+  barLabel: string
+  barUnit: string
+  lineLabel: string
+  lineUnit: string
+  caption: string
+}
+
 export interface SolarMiningReportData {
   // Mode: 'potential' for full system, 'comparison' for net metering comparison
   mode: 'potential' | 'comparison'
@@ -107,9 +121,29 @@ export interface SolarMiningReportData {
   generatedDate: string
   location: string
 
-  // Executive Summary
-  isProfitable: boolean
+  // Executive Summary - key metrics shown on cover
+  keyMetrics: {
+    annualBtc: string
+    annualSats: string
+    monthlyAvgSats: string
+    annualRevenue: string
+    annualProductionKwh: string
+    monthlyAvgProductionKwh: string
+  }
   summaryText: string
+
+  // Solar input method info
+  solarInputMethod: {
+    source: 'nrel_estimate' | 'manual_annual' | 'manual_monthly'
+    description: string
+  }
+
+  // Analysis type info (for excess mode)
+  analysisType?: {
+    type: 'total_potential' | 'excess_comparison'
+    compensationType?: string
+    compensationRate?: string
+  }
 
   // Inputs
   inputs: PdfInputCategory[]
@@ -117,8 +151,8 @@ export interface SolarMiningReportData {
   // Results
   results: PdfResultItem[]
 
-  // Monthly bar chart (for potential mode)
-  monthlyChart?: PdfBarChartData
+  // Monthly dual-axis chart (bars + line)
+  monthlyChart?: PdfDualAxisChartData
 
   // Net Metering Comparison (for comparison mode)
   comparison?: {
