@@ -492,29 +492,6 @@ export default function SolarMonetization() {
       effectiveBtcPrice
     )
   }, [hasRequiredData, inputMode, monthlyExportKwh, miner, effectiveHashvalue, effectiveBtcPrice])
-
-  // Excess mode mining summary (for result cards)
-  const excessMiningData = useMemo(() => {
-    if (!monthlyExcessMiningResult || !annualExportKwh || !effectiveBtcPrice) return null
-
-    const annualBtc = monthlyExcessMiningResult.monthlyBtc.reduce((a, b) => a + b, 0)
-    const annualUsd = monthlyExcessMiningResult.monthlyUsd.reduce((a, b) => a + b, 0)
-    const monthlyBtc = annualBtc / 12
-    const monthlyUsd = annualUsd / 12
-    const effectiveRevenuePerKwh = annualUsd / annualExportKwh
-    const btcPerKwh = (annualBtc * 1e8) / annualExportKwh // sats per kWh
-
-    return {
-      annualExportKwh,
-      annualBtc,
-      annualUsd,
-      monthlyBtc,
-      monthlyUsd,
-      effectiveRevenuePerKwh,
-      btcPerKwh,
-    }
-  }, [monthlyExcessMiningResult, annualExportKwh, effectiveBtcPrice])
-
   // ============================================================================
   // PDF Report Data Generation
   // ============================================================================
@@ -1457,12 +1434,12 @@ export default function SolarMonetization() {
         </div>
       )}
 
-      {/* Results Section - Mining Analysis (All modes) */}
-      {miningResult && (
+      {/* Results Section - Mining Analysis (non-excess modes only) */}
+      {miningResult && inputMode !== 'excess' && (
         <div id="solar-mining-results" className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-surface-900 dark:text-surface-100">
-              {inputMode === 'excess' ? 'Mining Revenue Analysis' : 'Total Solar Mining Potential'}
+              Total Solar Mining Potential
             </h2>
             <PdfReportButton
               reportType="solar"
@@ -1478,18 +1455,12 @@ export default function SolarMonetization() {
               <div className="flex items-center gap-2 mb-2">
                 <Sun className="w-5 h-5 text-yellow-500" />
                 <span className="text-sm text-surface-500 dark:text-surface-400">
-                  {inputMode === 'excess' ? 'Annual Excess' : 'Annual Production'}
+                  Annual Production
                 </span>
-                <SmartTooltip content={
-                  inputMode === 'excess'
-                    ? "Total excess solar energy exported to the grid annually. This is the energy available for mining instead of grid export. Based on your location's sun hours and actual export data."
-                    : "Total solar energy available for mining. Based on your location's sun hours and system size. Higher sun hours mean more mining opportunity."
-                } />
+                <SmartTooltip content="Total solar energy available for mining. Based on your location's sun hours and system size. Higher sun hours mean more mining opportunity." />
               </div>
               <div className="text-2xl font-bold text-surface-900 dark:text-surface-100">
-                {inputMode === 'excess' && excessMiningData
-                  ? formatKwh(excessMiningData.annualExportKwh)
-                  : formatKwh(miningResult.annualProductionKwh)}
+                {formatKwh(miningResult.annualProductionKwh)}
               </div>
               <p className="text-sm text-surface-500 mt-1">
                 {miner.hashrateTH > 0 ? `${(miner.powerW / miner.hashrateTH).toFixed(1)} J/TH efficiency` : 'N/A'}
@@ -1504,14 +1475,10 @@ export default function SolarMonetization() {
                 <SmartTooltip content="Total bitcoin mined annually using your solar power. Calculated from your hashrate (based on miner efficiency) and solar production hours. Assumes static BTC price and network conditions - actual earnings depend on BTC price when you sell and network difficulty changes over time. Does not account for future volatility." />
               </div>
               <div className="text-2xl font-bold text-surface-900 dark:text-surface-100">
-                {inputMode === 'excess' && excessMiningData
-                  ? formatBtc(excessMiningData.annualBtc)
-                  : formatBtc(miningResult.annualBtc)}
+                {formatBtc(miningResult.annualBtc)}
               </div>
               <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                ≈ {inputMode === 'excess' && excessMiningData
-                  ? formatUsd(excessMiningData.annualUsd)
-                  : formatUsd(miningResult.annualUsd)}/year
+                ≈ {formatUsd(miningResult.annualUsd)}/year
               </p>
             </div>
 
@@ -1523,14 +1490,10 @@ export default function SolarMonetization() {
                 <SmartTooltip content="Average monthly mining revenue. Summer months typically earn more due to longer sun hours. Remember this assumes current BTC price and network conditions throughout the year." />
               </div>
               <div className="text-2xl font-bold text-surface-900 dark:text-surface-100">
-                {inputMode === 'excess' && excessMiningData
-                  ? formatBtc(excessMiningData.monthlyBtc)
-                  : formatBtc(miningResult.monthlyBtc)}
+                {formatBtc(miningResult.monthlyBtc)}
               </div>
               <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                ≈ {inputMode === 'excess' && excessMiningData
-                  ? formatUsd(excessMiningData.monthlyUsd)
-                  : formatUsd(miningResult.monthlyUsd)}/month
+                ≈ {formatUsd(miningResult.monthlyUsd)}/month
               </p>
             </div>
 
@@ -1542,32 +1505,26 @@ export default function SolarMonetization() {
                 <SmartTooltip content="How much value you extract from each kWh of solar power via mining. Compare this to your utility's net metering rate to see relative value. Higher miner efficiency = higher revenue per kWh." />
               </div>
               <div className="text-2xl font-bold text-surface-900 dark:text-surface-100">
-                ${inputMode === 'excess' && excessMiningData
-                  ? excessMiningData.effectiveRevenuePerKwh.toFixed(3)
-                  : miningResult.effectiveRevenuePerKwh.toFixed(3)}
+                ${miningResult.effectiveRevenuePerKwh.toFixed(3)}
               </div>
               <p className="text-sm text-surface-500 mt-1">
-                {inputMode === 'excess' && excessMiningData
-                  ? excessMiningData.btcPerKwh.toFixed(0)
-                  : miningResult.btcPerKwh.toFixed(0)} sats/kWh
+                {miningResult.btcPerKwh.toFixed(0)} sats/kWh
               </p>
             </div>
           </div>
 
-          {/* Monthly Breakdown Chart (only for non-excess modes) */}
-          {inputMode !== 'excess' && (
-            <div className="bg-white dark:bg-surface-800 rounded-xl p-4 sm:p-6 shadow-lg">
-              <h3 className="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">
-                Monthly Revenue & Generation
-              </h3>
-              <DualAxisChart
-                revenueData={miningResult.monthlyUsdBreakdown}
-                revenueDataSats={miningResult.monthlyBtcBreakdown.map(btc => btc * 1e8)}
-                generationData={miningResult.monthlyProductionKwh}
-                monthLabels={Array.from({ length: 12 }, (_, i) => getMonthName(i))}
-              />
-            </div>
-          )}
+          {/* Monthly Breakdown Chart */}
+          <div className="bg-white dark:bg-surface-800 rounded-xl p-4 sm:p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-surface-900 dark:text-surface-100 mb-4">
+              Monthly Revenue & Generation
+            </h3>
+            <DualAxisChart
+              revenueData={miningResult.monthlyUsdBreakdown}
+              revenueDataSats={miningResult.monthlyBtcBreakdown.map(btc => btc * 1e8)}
+              generationData={miningResult.monthlyProductionKwh}
+              monthLabels={Array.from({ length: 12 }, (_, i) => getMonthName(i))}
+            />
+          </div>
         </div>
       )}
 
