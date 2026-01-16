@@ -27,8 +27,8 @@ export default function SolarMiningReport({ data }: SolarMiningReportProps) {
     comparison,
   } = data
 
-  // Determine total pages based on mode
-  const totalPages = mode === 'potential' ? 4 : 3
+  // Determine total pages based on whether monthly chart exists
+  const totalPages = monthlyChart ? 4 : 3
   const title =
     mode === 'potential'
       ? 'Solar Mining Potential'
@@ -62,7 +62,7 @@ export default function SolarMiningReport({ data }: SolarMiningReportProps) {
         isProfitable={true}
         summaryText={summaryText}
         keyMetrics={coverKeyMetrics}
-        hideProfitableStatus={mode === 'potential'}
+        hideProfitableStatus={true}
       />
 
       {/* Page 2: Inputs & Results */}
@@ -337,6 +337,107 @@ export default function SolarMiningReport({ data }: SolarMiningReportProps) {
               Actual results will vary as: (1) BTC price fluctuates, (2) Network difficulty adjusts every ~2 weeks,
               (3) Transaction fee percentages change with network congestion. For planning purposes, consider
               running scenarios at different price points and network conditions.
+            </Text>
+          </View>
+        </PdfPage>
+      )}
+
+      {/* Page 4: Monthly Breakdown (comparison mode) */}
+      {mode === 'comparison' && monthlyChart && (
+        <PdfPage pageNumber={4} totalPages={totalPages} headerTitle="Solar Mining Analysis">
+          <PdfSection title="Monthly Revenue & Excess Energy">
+            <PdfDualAxisChart data={monthlyChart} />
+
+            {/* Monthly breakdown table */}
+            <View style={{ marginTop: 15 }}>
+              {/* Table header */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  backgroundColor: '#f3f4f6',
+                  paddingVertical: 6,
+                  paddingHorizontal: 8,
+                  borderTopLeftRadius: 4,
+                  borderTopRightRadius: 4,
+                }}
+              >
+                <Text style={{ width: '25%', fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.textMuted }}>
+                  Month
+                </Text>
+                <Text style={{ width: '25%', fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.textMuted, textAlign: 'right' }}>
+                  Excess Energy
+                </Text>
+                <Text style={{ width: '25%', fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.textMuted, textAlign: 'right' }}>
+                  Revenue (sats)
+                </Text>
+                <Text style={{ width: '25%', fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.textMuted, textAlign: 'right' }}>
+                  Revenue ($)
+                </Text>
+              </View>
+              {/* Table rows */}
+              {monthlyChart.bars.map((bar, index) => (
+                <View
+                  key={index}
+                  style={{
+                    flexDirection: 'row',
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    backgroundColor: index % 2 === 0 ? '#ffffff' : '#f9fafb',
+                    borderBottomWidth: index === monthlyChart.bars.length - 1 ? 0 : 0.5,
+                    borderBottomColor: '#e5e7eb',
+                  }}
+                >
+                  <Text style={{ width: '25%', fontSize: 7, color: colors.text }}>
+                    {bar.label}
+                  </Text>
+                  <Text style={{ width: '25%', fontSize: 7, color: colors.text, textAlign: 'right' }}>
+                    {Math.round(monthlyChart.lineData[index]).toLocaleString()} kWh
+                  </Text>
+                  <Text style={{ width: '25%', fontSize: 7, color: colors.text, textAlign: 'right' }}>
+                    {bar.valueSats.toLocaleString()}
+                  </Text>
+                  <Text style={{ width: '25%', fontSize: 7, color: colors.text, textAlign: 'right' }}>
+                    ${bar.value.toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+              {/* Totals row */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  paddingVertical: 6,
+                  paddingHorizontal: 8,
+                  backgroundColor: '#f0fdf4',
+                  borderBottomLeftRadius: 4,
+                  borderBottomRightRadius: 4,
+                }}
+              >
+                <Text style={{ width: '25%', fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.text }}>
+                  TOTAL
+                </Text>
+                <Text style={{ width: '25%', fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.text, textAlign: 'right' }}>
+                  {Math.round(monthlyChart.lineData.reduce((sum, v) => sum + v, 0)).toLocaleString()} kWh
+                </Text>
+                <Text style={{ width: '25%', fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.text, textAlign: 'right' }}>
+                  {monthlyChart.bars.reduce((sum, b) => sum + b.valueSats, 0).toLocaleString()}
+                </Text>
+                <Text style={{ width: '25%', fontSize: 7, fontFamily: 'Helvetica-Bold', color: colors.text, textAlign: 'right' }}>
+                  ${monthlyChart.bars.reduce((sum, b) => sum + b.value, 0).toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          </PdfSection>
+
+          {/* Freeze-frame disclaimer */}
+          <View style={{ backgroundColor: '#fef3c7', padding: 10, borderRadius: 4, marginTop: 10 }}>
+            <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#92400e', marginBottom: 4 }}>
+              Freeze-Frame Analysis Disclaimer
+            </Text>
+            <Text style={{ fontSize: 7, color: '#92400e', lineHeight: 1.4 }}>
+              This report represents a point-in-time snapshot using current BTC price and network conditions.
+              Actual results will vary as: (1) BTC price fluctuates, (2) Network difficulty adjusts every ~2 weeks,
+              (3) Transaction fee percentages change with network congestion. The mining vs {comparison?.compensationType?.toLowerCase() || 'net metering'} comparison
+              may shift as market conditions change.
             </Text>
           </View>
         </PdfPage>

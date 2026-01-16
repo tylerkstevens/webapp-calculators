@@ -726,6 +726,22 @@ export default function SolarMonetization() {
       },
     ]
 
+    // Monthly dual-axis chart data (if monthly breakdown available)
+    const monthlyChart = monthlyExcessMiningResult && monthlyExportKwh ? {
+      title: 'Monthly Mining Revenue & Excess Generation',
+      bars: monthlyExcessMiningResult.monthlyUsd.map((usd, i) => ({
+        label: getMonthName(i),
+        value: usd,
+        valueSats: Math.round(monthlyExcessMiningResult.monthlyBtc[i] * 1e8),
+      })),
+      lineData: monthlyExportKwh,
+      barLabel: 'Mining Revenue',
+      barUnit: '$',
+      lineLabel: 'Excess Energy',
+      lineUnit: 'kWh',
+      caption: 'Monthly mining revenue from excess solar. Analysis assumes constant BTC price and network conditions.',
+    } : undefined
+
     return {
       mode: 'comparison',
       generatedDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
@@ -749,6 +765,7 @@ export default function SolarMonetization() {
       },
       inputs,
       results,
+      monthlyChart,
       comparison: {
         netMeteringValue: netMeteringResult.netMeteringRevenue,
         miningRevenue: netMeteringResult.miningRevenue,
@@ -758,7 +775,7 @@ export default function SolarMonetization() {
         compensationType: compType.label,
       },
     }
-  }, [netMeteringResult, inputMode, minerType, solarEstimate, zipCode, effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, annualExportKwh, compensationType, netMeteringRate, minerPower, minerHashrate, dataEntryMethod, networkMetrics, effectiveFeePercent])
+  }, [netMeteringResult, inputMode, minerType, solarEstimate, zipCode, effectiveBtcPrice, effectiveHashprice, effectiveNetworkHashrate, annualExportKwh, compensationType, netMeteringRate, minerPower, minerHashrate, dataEntryMethod, networkMetrics, effectiveFeePercent, monthlyExcessMiningResult, monthlyExportKwh])
 
   // ============================================================================
   // Render
