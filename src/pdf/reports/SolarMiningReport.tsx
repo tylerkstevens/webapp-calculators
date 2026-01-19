@@ -1,5 +1,5 @@
 import { Document, View, Text } from '@react-pdf/renderer'
-import { colors } from '../styles'
+import { colors, styles } from '../styles'
 import PdfCover from '../components/PdfCover'
 import PdfPage from '../components/PdfPage'
 import PdfSection from '../components/PdfSection'
@@ -67,7 +67,9 @@ export default function SolarMiningReport({ data }: SolarMiningReportProps) {
 
       {/* Page 2: Inputs & Results */}
       <PdfPage pageNumber={2} totalPages={totalPages} headerTitle="Solar Mining Analysis">
-        <PdfSection title="Input Parameters">
+        {/* Input Parameters - reduced margin for comparison mode */}
+        <View style={{ marginBottom: mode === 'comparison' ? 15 : 20 }}>
+          <Text style={styles.sectionTitle}>Input Parameters</Text>
           {/* Solar data source note */}
           <View style={{ backgroundColor: '#eff6ff', padding: 8, borderRadius: 4, marginBottom: 10 }}>
             <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#1e40af', marginBottom: 2 }}>
@@ -81,19 +83,23 @@ export default function SolarMiningReport({ data }: SolarMiningReportProps) {
             </Text>
           </View>
           <PdfInputs categories={inputs} />
-        </PdfSection>
+        </View>
 
-        <PdfSection title="Results">
+        {/* Results - reduced margin for comparison mode */}
+        <View style={{ marginBottom: mode === 'comparison' ? 15 : 20 }}>
+          <Text style={styles.sectionTitle}>Results</Text>
           <PdfResultsCompact results={results} />
-        </PdfSection>
+        </View>
 
-        {/* Comparison Summary (for comparison mode) */}
+        {/* Comparison Summary (for comparison mode) - wrap={false} prevents splitting */}
         {mode === 'comparison' && comparison && (
-          <PdfSection title="Recommendation">
+          <View style={{ marginBottom: 0 }}>
+            <Text style={styles.sectionTitle}>Recommendation</Text>
             <View
+              wrap={false}
               style={{
                 backgroundColor: comparison.recommendMining ? '#dcfce7' : '#fef3c7',
-                padding: 15,
+                padding: 12,
                 borderRadius: 8,
               }}
             >
@@ -115,7 +121,7 @@ export default function SolarMiningReport({ data }: SolarMiningReportProps) {
                   : `${comparison.compensationType} currently provides $${Math.abs(comparison.advantage).toLocaleString()} more per year than mining at current BTC prices. Consider mining if you expect BTC prices to increase.`}
               </Text>
             </View>
-          </PdfSection>
+          </View>
         )}
       </PdfPage>
 

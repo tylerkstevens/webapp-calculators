@@ -28,7 +28,7 @@ export default function PdfResults({ results }: PdfResultsProps) {
 // Compact version for 2-column layout
 export function PdfResultsCompact({ results }: PdfResultsProps) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {results.map((result, index) => (
         <View
           key={index}
